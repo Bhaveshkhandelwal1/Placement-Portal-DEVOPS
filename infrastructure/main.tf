@@ -420,7 +420,7 @@ resource "aws_lb_listener_rule" "backend" {
 # EC2 Instance for Jenkins
 resource "aws_instance" "jenkins" {
   ami           = data.aws_ami.ubuntu.id
-  instance_type = "t3.medium"  # 2 vCPU, 4 GB RAM - much better for Jenkins
+  instance_type = "t3.micro"  # 2 vCPU, 4 GB RAM - much better for Jenkins
   subnet_id     = aws_subnet.public[0].id
   vpc_security_group_ids = [aws_security_group.jenkins.id]
   key_name      = "placement-portal-key"
@@ -449,7 +449,7 @@ resource "aws_eip" "jenkins" {
 # EC2 Instance for MongoDB
 resource "aws_instance" "mongodb" {
   ami           = data.aws_ami.ubuntu.id
-  instance_type = "t3.small"  # 2 vCPU, 2 GB RAM - good for MongoDB
+  instance_type = "t3.micro"  # 2 vCPU, 2 GB RAM - good for MongoDB
   subnet_id     = aws_subnet.public[0].id
   vpc_security_group_ids = [aws_security_group.mongodb.id]
   key_name      = "placement-portal-key"
@@ -469,7 +469,7 @@ resource "aws_instance" "mongodb" {
 # EC2 Instance for SonarQube
 resource "aws_instance" "sonarqube" {
   ami           = data.aws_ami.ubuntu.id
-  instance_type = "t3.medium"  # 2 vCPU, 4 GB RAM - much better for SonarQube
+  instance_type = "t3.micro"  # 2 vCPU, 4 GB RAM - much better for SonarQube
   subnet_id     = aws_subnet.public[1].id
   vpc_security_group_ids = [aws_security_group.sonarqube.id]
   key_name      = "placement-portal-key"

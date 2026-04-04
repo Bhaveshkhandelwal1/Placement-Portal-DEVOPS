@@ -1,6 +1,6 @@
 # Terraform variables file for AWS deployment
 aws_region = "us-east-1"
-project_name = "placement-portal"
+project_name = "placement-portal-bk"
 environment = "dev"
 vpc_cidr = "10.0.0.0/16"
 

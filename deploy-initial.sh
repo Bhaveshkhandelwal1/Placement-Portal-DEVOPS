@@ -34,7 +34,7 @@ echo "=============================================="
 # Check if this is truly an initial deployment
 print_status "Checking if infrastructure already exists..."
 
-if aws autoscaling describe-auto-scaling-groups --auto-scaling-group-names placement-portal-backend-asg --region us-east-1 >/dev/null 2>&1; then
+if [ "$(aws autoscaling describe-auto-scaling-groups --auto-scaling-group-names placement-portal-backend-asg --region us-east-1 --query 'length(AutoScalingGroups)')" -gt 0 ]; then
     print_warning "Infrastructure already exists! Use ./deploy-ec2.sh for updates instead."
     echo ""
     echo "Available deployment options:"
