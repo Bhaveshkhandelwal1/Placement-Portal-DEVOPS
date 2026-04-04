@@ -59,4 +59,10 @@ tmp/
 *.tar.gz
 *.zip
 *.dmg
-*.iso
+*.isobackend/.env
+*.zip
+*.zip.1
+infrastructure/terraform.tfstate
+infrastructure/terraform.tfstate.backup
+infrastructure/.terraform/
+placement-portal-key.pem
