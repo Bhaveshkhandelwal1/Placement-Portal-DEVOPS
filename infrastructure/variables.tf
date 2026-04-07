@@ -25,7 +25,7 @@ variable "vpc_cidr" {
 variable "backend_instance_type" {
   description = "EC2 instance type for backend instances"
   type        = string
-  default     = "t3.small"
+  default     = "t3.micro"
 }
 
 variable "frontend_instance_type" {

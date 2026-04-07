@@ -71,7 +71,7 @@ deploy_terraform() {
     echo -e "${BLUE}Getting infrastructure outputs...${NC}"
     BACKEND_ECR_URL=$(terraform output -raw backend_repository_url)
     FRONTEND_ECR_URL=$(terraform output -raw frontend_repository_url)
-    DOCDB_ENDPOINT=$(terraform output -raw docdb_cluster_endpoint)
+    MONGODB_IP=$(terraform output -raw mongodb_public_ip)
     ALB_DNS=$(terraform output -raw load_balancer_dns)
     
     cd ..
@@ -79,7 +79,7 @@ deploy_terraform() {
     echo -e "${GREEN}✅ Infrastructure deployed successfully${NC}"
     echo -e "${BLUE}Backend ECR: ${BACKEND_ECR_URL}${NC}"
     echo -e "${BLUE}Frontend ECR: ${FRONTEND_ECR_URL}${NC}"
-    echo -e "${BLUE}DocumentDB Endpoint: ${DOCDB_ENDPOINT}${NC}"
+    echo -e "${BLUE}MongoDB IP: ${MONGODB_IP}${NC}"
     echo -e "${BLUE}Load Balancer DNS: ${ALB_DNS}${NC}"
 }
 

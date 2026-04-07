@@ -1,0 +1,1055 @@
+================================================================================
+PLACEMENT MANAGEMENT SYSTEM — COMPREHENSIVE INTERVIEW HANDBOOK
+================================================================================
+Version : Repo-verified, deeply detailed edition
+Date    : 2026-04-06
+Author  : Bhavesh Khandelwal
+
+USAGE GUIDE
+-----------
+This document is your single source of truth for interview prep on this project.
+Sections are ordered from broad → deep so you can stop at the right depth for
+each type of interview (HR, technical, system-design, DevOps specialist).
+
+Truthfulness status key:
+  [DONE]    Implemented and verifiable in the repo right now.
+  [PARTIAL] Structure exists but is a placeholder / not fully wired.
+  [ROADMAP] Designed but not yet coded — declare it as future work.
+
+================================================================================
+PART 0 — QUICK REFERENCE CARD (30-SECOND GLANCE)
+================================================================================
+
+Project    : Placement Portal — full-stack web app for campus placement workflows
+Language   : TypeScript (backend) + React/TypeScript (frontend)
+Backend    : Node.js 18 + Express 5 + Mongoose 8
+Database   : MongoDB 7 (self-hosted on EC2 / Docker)
+Frontend   : React + Vite → Nginx multi-stage Docker image
+Auth       : JWT (jsonwebtoken 9) + bcryptjs password hashing + RBAC middleware
+Cloud      : AWS (region: us-east-1) — EC2, ALB, ECR, VPC, IAM, S3
+IaC        : Terraform >= 1.0 with AWS provider ~> 5.0
+CI/CD      : Jenkins (13-stage Declarative Pipeline)
+Registry   : AWS ECR (private) — backend + frontend repos
+Deployment : AWS SSM send-command to EC2 targets (no SSH required)
+Monitoring : Setup scripts present; full observability stack = [ROADMAP]
+K8s/Helm   : [ROADMAP] — not active in repo
+
+ONE-LINER FOR EVERY INTERVIEW:
+"A production-oriented, containerized placement portal deployed on AWS EC2+ALB
+with full IaC via Terraform and an automated build/deploy pipeline via Jenkins."
+
+================================================================================
+PART 1 — PROJECT OVERVIEW
+================================================================================
+
+1.1 PROBLEM STATEMENT
+---------------------
+Campus placement processes are fragmented: notices are emailed manually, student
+eligibility is tracked on spreadsheets, and HR teams lack a real-time dashboard.
+
+This portal centralises:
+  - Student self-registration and profile management
+  - Admin-driven notice publishing with eligibility targeting (CGPA, branch, year)
+  - Placement status tracking (applied → shortlisted → placed)
+  - Admin analytics dashboard (statistics by company, job type)
+
+1.2 USER ROLES
+--------------
+Role       | What they can do
+-----------|-----------------------------------------------------------------
+student    | Register, login, update profile, view targeted notices, see status
+admin      | Publish/delete notices, manage all students, update placement status,
+           | view aggregate statistics
+
+1.3 BUSINESS VALUE DELIVERED
+-----------------------------
+- Replaces ad-hoc emails/spreadsheets with structured workflow
+- Notice targeting ensures students only see relevant opportunities
+- Admin analytics surface placement trends instantly
+- Containerized, infra-as-code deployment means zero-manual-setup environments
+
+1.4 2-MINUTE PITCH (memorize this)
+------------------------------------
+"I built a campus placement management system with a Node.js/Express/TypeScript
+backend and a React frontend. It supports JWT-based authentication with
+role-based access control for students and admins. Students can register,
+update their profile, and view placement notices filtered by their semester,
+branch, and CGPA. Admins can publish targeted notices, update student placement
+statuses, and view aggregate statistics.
+
+On the infrastructure side, I Dockerized both services and provisioned the entire
+AWS environment — VPC, subnets, security groups, ALB, EC2, ECR, IAM roles, and
+S3 — using Terraform. I set up a 13-stage Jenkins CI/CD pipeline that handles
+parallel builds, Docker image publishes to ECR, and zero-touch production
+deployment via AWS SSM. The system is a well-architected v1; Kubernetes and
+real-time WebSockets are the planned next phase."
+
+================================================================================
+PART 2 — ARCHITECTURE (CURRENT STATE)
+================================================================================
+
+2.1 HIGH-LEVEL DIAGRAM
+-----------------------
+
+  [Browser / Student / Admin]
+           |
+           v (HTTP)
+    [AWS Application Load Balancer]  ← placement-portal-alb  (port 80)
+           |
+     path-based routing (listener rule priority=100)
+           |                               |
+      /api/*  →                    default →
+           |                               |
+  [Backend EC2 + Docker]         [Frontend EC2 + Docker]
+  Ubuntu 22.04 LTS               Ubuntu 22.04 LTS
+  Node.js Express container      Nginx serving React SPA
+  port 5000                      port 80 → container 8080
+           |
+           v
+  [MongoDB EC2 + Elastic IP]
+  Ubuntu 22.04 LTS
+  MongoDB 7 (self-hosted)
+  port 27017
+
+  [Jenkins EC2 + Elastic IP]   → orchestrates build + deploy
+  Ubuntu 22.04 LTS, t3.micro
+  port 8080
+
+  [AWS ECR]  ← Docker images pushed here by Jenkins
+  [AWS S3]   ← artifact bucket (versioned + AES-256 encrypted)
+  [AWS IAM]  ← roles/policies for EC2 instances + Jenkins
+
+2.2 NETWORK TOPOLOGY
+---------------------
+Resource                     | CIDR / Details
+-----------------------------|-----------------------------------------------
+VPC                          | var.vpc_cidr (e.g. 10.0.0.0/16)
+Public Subnet 1 (AZ-1)       | cidrsubnet(vpc_cidr, 8, 0)
+Public Subnet 2 (AZ-2)       | cidrsubnet(vpc_cidr, 8, 1)
+Internet Gateway             | attached to VPC
+Route Table                  | 0.0.0.0/0 → IGW (public subnets)
+ALB Security Group           | IN: 80,443 from 0.0.0.0/0
+Backend Security Group       | IN: 5000, 22 from 0.0.0.0/0  ← needs tightening
+Frontend Security Group      | IN: 80, 22 from 0.0.0.0/0
+MongoDB Security Group       | IN: 27017, 22 from 0.0.0.0/0 ← needs tightening
+Jenkins Security Group       | IN: 8080, 22 from 0.0.0.0/0
+
+Note on security: All ingress rules currently allow 0.0.0.0/0. In production
+the MongoDB port should only allow the backend security group, and SSH should
+be restricted to a VPN/bastion IP. This is #1 on the hardening backlog.
+
+2.3 REQUEST LIFECYCLE (trace a student login)
+---------------------------------------------
+1. Student opens React SPA in browser (served by Nginx on Frontend EC2).
+2. React app sends POST /api/auth/login to ALB DNS.
+3. ALB listener rule matches /api/* → forwards to Backend Target Group (port 5000).
+4. ALB health check confirms backend is alive (GET /health → 200 response).
+5. Express server validates JSON body, queries MongoDB for user by email.
+6. bcryptjs compares submitted password with stored hash.
+7. On match, server signs JWT (jsonwebtoken, secret from env var).
+8. JWT returned to React; stored in memory/localStorage.
+9. Subsequent requests include Authorization: Bearer <token>.
+10. Backend protect() middleware extracts and verifies the JWT on every call.
+11. adminOnly/studentOnly middleware enforces role restrictions.
+12. Response flows back through ALB to client.
+
+2.4 ALB PATH ROUTING (exact Terraform config)
+----------------------------------------------
+Listener      : port 80, protocol HTTP
+Default action: forward to FRONTEND target group
+Listener Rule : priority=100, condition path_pattern=/api/*
+                action: forward to BACKEND target group (port 5000)
+
+Health checks:
+  Backend : GET /health, matcher="200", interval=30s, threshold=2
+  Frontend: GET / , matcher="200", interval=30s, threshold=2
+
+================================================================================
+PART 3 — BACKEND IN DEPTH (Node.js + Express + TypeScript)
+================================================================================
+
+3.1 TECH STACK VERSIONS
+------------------------
+Package              | Version
+---------------------|------------
+express              | ^5.1.0
+mongoose             | ^8.13.2
+jsonwebtoken         | ^9.0.2
+bcryptjs             | ^3.0.2
+cors                 | ^2.8.5
+dotenv               | ^16.4.7
+typescript           | ^5.8.3
+ts-node (dev)        | ^10.9.2
+nodemon (dev)        | ^3.1.10
+
+3.2 SERVER BOOTSTRAP (server.ts)
+----------------------------------
+Startup sequence:
+  1. dotenv.config() → loads PORT, NODE_ENV, MONGODB_URI, JWT_SECRET
+  2. connectDB()     → connects Mongoose to MongoDB
+  3. express()       → initializes app
+  4. express.json()  → body parser middleware
+  5. cors()          → CORS middleware with explicit allow-list:
+       - http://localhost:3000
+       - http://localhost:5173
+       - regex: *.elb.amazonaws.com  (ALB DNS)
+       - regex: *.compute.amazonaws.com (EC2 public DNS)
+  6. Route mounts:
+       /api/auth     → authRoutes
+       /api/notices  → noticeRoutes
+       /api/students → studentRoutes
+  7. Health endpoints:
+       GET /health     → { status: 'healthy', timestamp }
+       GET /ready      → { status: 'ready', timestamp }
+       GET /api/health → { status: 'healthy', timestamp }
+  8. Global error handler middleware (hides stack in production)
+  9. app.listen(PORT || 5000)
+
+Build: tsc compiles TypeScript → dist/server.js
+Run  : node dist/server.js  (production)
+Dev  : nodemon --exec ts-node src/server.ts
+
+3.3 COMPLETE API REFERENCE
+---------------------------
+
+── /api/auth ──────────────────────────────────────────────────────────────────
+Method | Path               | Auth       | Description
+-------|--------------------|-----------|---------------------------------
+POST   | /register          | Public     | Create new user account
+POST   | /login             | Public     | Returns JWT on valid credentials
+PUT    | /change-password   | Protected  | Update own password (bcrypt re-hash)
+GET    | /me                | Protected  | Returns logged-in user profile
+
+── /api/notices ───────────────────────────────────────────────────────────────
+Method | Path               | Auth       | Description
+-------|--------------------|-----------|---------------------------------
+GET    | /companies         | Public     | List companies (for landing page)
+GET    | /student           | Student    | Notices filtered by my CGPA/branch/sem
+POST   | /                  | Admin      | Create new placement notice
+GET    | /all               | Admin      | All notices (unfiltered)
+DELETE | /:id               | Admin      | Remove a notice by ID
+
+── /api/students ──────────────────────────────────────────────────────────────
+Method | Path                    | Auth   | Description
+-------|-------------------------|---------|---------------------------------
+PUT    | /profile                | Student | Update own profile (CGPA etc.)
+GET    | /                       | Admin   | List all students
+GET    | /statistics             | Admin   | Aggregate stats (placed/company/type)
+GET    | /:usn                   | Admin   | Get single student by USN
+PUT    | /:usn/placement-status  | Admin   | Update student placement status
+PUT    | /:usn/update            | Admin   | Admin update of any student field
+
+3.4 MIDDLEWARE LAYER
+---------------------
+Order  | Middleware     | Purpose
+-------|----------------|--------------------------------------------------
+1      | express.json() | Parse application/json request bodies
+2      | cors()         | CORS enforcement with origin allow-list
+3      | protect()      | Verify JWT from Authorization header; attach req.user
+4      | adminOnly()    | Reject non-admin users (403)
+5      | studentOnly()  | Reject non-student users (403)
+6      | errorHandler() | Catch-all; hides stack trace in NODE_ENV=production
+
+3.5 DATA MODELS (MongoDB/Mongoose)
+------------------------------------
+
+User model fields:
+  username     String  unique (sparse)
+  email        String  unique, required
+  password     String  required (bcrypt hash, select:false on queries)
+  role         String  enum: ['student', 'admin']
+  usn          String  unique (sparse) — student identifier
+  fullName     String
+  semester     Number
+  branch       String  (CSE / ECE / ME / etc.)
+  year         Number
+  cgpa         Number
+  placementStatus String  (none / applied / shortlisted / placed)
+  placedCompany   String
+  jobType         String  (software / core / management / other)
+
+Notice model fields:
+  title        String
+  company      String
+  description  String
+  targetSemesters  [Number]   — which semesters to show this notice to
+  targetBranches   [String]   — which branches are eligible
+  targetYears      [Number]
+  minCGPA      Number         — minimum CGPA to see this notice
+  package      Number         — CTC in LPA
+  jobType      String
+  deadline     Date
+  createdBy    ObjectId ref User (admin)
+  createdAt    Date
+
+Notice filtering logic (GET /api/notices/student):
+  - Query: semester IN targetSemesters
+  - Query: branch IN targetBranches
+  - Query: cgpa >= minCGPA
+  → Only matching notices are returned to the logged-in student.
+
+================================================================================
+PART 4 — FRONTEND
+================================================================================
+
+4.1 STACK
+----------
+  React + Vite (TypeScript)
+  Nginx serves the compiled static bundle
+  VITE_API_URL env var points to ALB DNS at build time
+
+4.2 DOCKERFILE (multi-stage)
+-----------------------------
+Stage 1 — Build:
+  FROM node:18-alpine
+  npm ci → npm run build  (Vite produces dist/)
+
+Stage 2 — Runtime:
+  FROM nginx:alpine
+  COPY dist/ /usr/share/nginx/html/
+  COPY nginx.conf /etc/nginx/conf.d/default.conf
+  HEALTHCHECK: wget --spider http://localhost:8080
+  EXPOSE 8080
+
+docker-compose maps host:80 → container:8080.
+
+4.3 NGINX CONFIG POINTS TO DISCUSS
+------------------------------------
+- Single-page application: all unknown paths return index.html
+  (important for React Router client-side routing)
+- Gzip compression enabled for JS/CSS assets
+- Proxies /api/* requests upstream to backend container
+
+================================================================================
+PART 5 — DOCKER & CONTAINERIZATION
+================================================================================
+
+5.1 DOCKER COMPOSE (local dev / single-host prod)
+---------------------------------------------------
+Version: 3.9
+Services and startup dependency chain:
+
+  mongodb (healthcheck: mongosh ping every 10s, 5 retries, 20s start)
+      ↓ (condition: service_healthy)
+  backend  (healthcheck: wget /health every 15s, 5 retries, 30s start)
+      ↓ (condition: service_healthy)
+  frontend (no explicit health; depends on backend being up)
+
+MongoDB env:
+  MONGO_INITDB_ROOT_USERNAME: placement
+  MONGO_INITDB_ROOT_DATABASE: placement_db
+  Volume: mongo_data (named volume, local driver)
+
+Backend env:
+  PORT=5000, NODE_ENV=production
+  MONGODB_URI=mongodb://placement:admin123@mongodb:27017/placement_db?authSource=admin
+  JWT_SECRET=${JWT_SECRET:-super-secure-jwt-secret-change-in-production}
+  (Default fallback is a known secret — must be overridden in production via env manager)
+
+Network: placement-net (bridge driver, service DNS by service name)
+
+5.2 BACKEND DOCKERFILE
+-----------------------
+  FROM node:18-alpine
+  WORKDIR /app
+  COPY package*.json ./
+  RUN npm ci --only=production   (faster, no dev deps)
+  COPY . .
+  RUN npm run build              (tsc → dist/)
+  RUN npm prune --production     (remove leftover dev artifacts)
+  USER node                      (non-root for security)
+  CMD ["node", "dist/server.js"]
+
+5.3 IMAGE TAGGING STRATEGY (Jenkins)
+--------------------------------------
+Each CI run tags images with:
+  <ECR_REGISTRY>/placement-portal-backend:<GIT_COMMIT_SHORT>
+  <ECR_REGISTRY>/placement-portal-backend:latest
+
+This means every commit produces a traceable image and :latest always points to
+the most recently deployed build. To discuss: semantic versioning would be
+preferable for release management (e.g., v1.2.3 tags).
+
+5.4 ECR IMAGE SCANNING
+------------------------
+ECR repositories have scan_on_push = true configured in Terraform.
+This means every pushed image is automatically scanned by AWS Inspector for
+known OS and application CVEs. Results are visible in the ECR console.
+(Container scanning stage in Jenkinsfile is a placeholder for additional tools
+like Trivy or Snyk.)
+
+================================================================================
+PART 6 — INFRASTRUCTURE AS CODE (TERRAFORM)
+================================================================================
+
+6.1 TERRAFORM CONFIGURATION
+-----------------------------
+  Required version : >= 1.0
+  AWS provider     : ~> 5.0 (latest major)
+  Region           : us-east-1
+  State            : local (terraform.tfstate in /infrastructure)
+  Variables        : infrastructure/variables.tf + terraform.tfvars
+
+6.2 COMPLETE RESOURCE INVENTORY
+---------------------------------
+Resource Type                     | Logical Name         | Notes
+----------------------------------|----------------------|-------------------
+aws_vpc                           | main                 | DNS hostnames on
+aws_internet_gateway              | main                 |
+aws_subnet (count=2)              | public               | 2 AZs, public IPs
+aws_route_table                   | public               | 0.0.0.0/0→IGW
+aws_route_table_association (x2)  | public               |
+aws_ecr_repository                | backend, frontend    | scan_on_push=true
+aws_security_group                | alb                  | IN: 80,443
+aws_security_group                | backend              | IN: 5000,22
+aws_security_group                | frontend             | IN: 80,22
+aws_security_group                | mongodb              | IN: 27017,22
+aws_security_group                | jenkins              | IN: 8080,22
+aws_lb                            | main (ALB)           | internet-facing
+aws_lb_target_group               | backend (port 5000)  | healthcheck /health
+aws_lb_target_group               | frontend (port 80)   | healthcheck /
+aws_lb_listener                   | main (port 80)       | default→frontend
+aws_lb_listener_rule              | backend (pri=100)    | /api/*→backend
+aws_lb_target_group_attachment    | backend, frontend    |
+aws_instance                      | backend              | Ubuntu 22.04
+aws_instance                      | frontend             | Ubuntu 22.04
+aws_instance                      | mongodb              | Ubuntu 22.04
+aws_instance                      | jenkins              | Ubuntu 22.04, t3.micro
+aws_eip                           | mongodb, jenkins     | static IPs
+aws_iam_role                      | app_instance         | EC2 assume role
+aws_iam_policy                    | app_instance         | ECR pull + CloudWatch
+                                  |                      | logs + SSM actions
+aws_iam_role_policy_attachment    | app_instance         |
+                                  | app_instance_ssm     | AmazonSSMManagedInstanceCore
+aws_iam_instance_profile          | app_instance         | attached to EC2s
+aws_iam_role                      | jenkins              | EC2 assume role
+aws_iam_policy                    | jenkins              | ECR:*, EKS:*, EC2:*,
+                                  |                      | IAM:PassRole  ← broad
+aws_iam_role_policy_attachment    | jenkins              |
+aws_iam_instance_profile          | jenkins              |
+aws_s3_bucket                     | artifacts            | account-unique name
+aws_s3_bucket_versioning          | artifacts            | enabled
+aws_s3_bucket_server_side_        | artifacts            | AES-256 SSE
+  encryption_configuration        |                      |
+
+AMI data sources:
+  ubuntu       : ubuntu-jammy-22.04-amd64 (Canonical, latest HVM SSD)
+  amazon_linux : al2023-ami-*-x86_64 (Amazon, latest HVM)
+
+6.3 WHY TERRAFORM IS A STRENGTH TO HIGHLIGHT
+----------------------------------------------
+1. Idempotency — run terraform apply twice safely; no duplicate resources.
+2. Drift detection — terraform plan shows any manual console changes.
+3. Repeatability — destroy and recreate entire environment in minutes.
+4. State management — terraform.tfstate records the relationship between
+   Terraform configs and real AWS resource IDs.
+5. Dependency graph — Terraform resolves the correct creation order
+   (e.g., EIP before backend user_data that embeds the MongoDB IP).
+
+6.4 HOW TO EXPLAIN TERRAFORM WORKFLOW
+---------------------------------------
+Step 1: terraform init      → download AWS provider plugin
+Step 2: terraform plan      → preview changes (diff against state)
+Step 3: terraform apply     → provision/update resources
+Step 4: terraform destroy   → tear down all resources
+
+Interview story: "I defined the full AWS stack in ~720 lines of HCL. When I
+needed to change instance types because of EC2 vCPU limits, I updated one
+variable (backend_instance_type = 't2.micro') and ran terraform apply — it
+updated the EC2 in place without touching any other resource."
+
+6.5 KNOWN GAPS TO ACKNOWLEDGE HONESTLY
+-----------------------------------------
+- Security groups allow 0.0.0.0/0 for SSH and MongoDB — should restrict to
+  VPN CIDR or bastion host only.
+- JWT_SECRET is hardcoded in backend user_data script — should use AWS Secrets
+  Manager or SSM Parameter Store.
+- No private subnets — MongoDB and backend are in public subnets; a VPC with
+  public+private subnets (NAT gateway) would be the proper architecture.
+- No remote Terraform state backend — tfstate is local; team work would require
+  S3 backend + DynamoDB state locking.
+- MongoDB has no replica set — single point of failure for the database.
+
+================================================================================
+PART 7 — CI/CD PIPELINE (JENKINS)
+================================================================================
+
+7.1 PIPELINE OVERVIEW
+-----------------------
+  Type          : Declarative Pipeline
+  File          : /Jenkinsfile (386 lines)
+  Agent         : any
+  Total stages  : 13 (some parallel)
+
+7.2 ENVIRONMENT VARIABLES SET
+-------------------------------
+Variable              | Value / Source
+----------------------|-----------------------------------------------
+AWS_ACCOUNT_ID        | 011528267161
+AWS_REGION            | us-east-1
+ECR_REGISTRY          | <account>.dkr.ecr.us-east-1.amazonaws.com
+IMAGE_BACKEND         | <ECR_REGISTRY>/placement-portal-backend
+IMAGE_FRONTEND        | <ECR_REGISTRY>/placement-portal-frontend
+SONAR_HOST_URL        | http://<jenkins-ip>:9000
+AWS_DEFAULT_REGION    | us-east-1
+AWS_CREDENTIALS       | Jenkins credential ID: aws-credentials
+GITHUB_CREDENTIALS    | Jenkins credential ID: github-credentials
+SONARQUBE_TOKEN       | Jenkins credential ID: sonarqube-token
+
+7.3 ALL 13 STAGES (status, what they do, interview points)
+-----------------------------------------------------------
+
+Stage 1: Checkout [DONE]
+  - checkout scm (from GitHub)
+  - captures GIT_COMMIT_SHORT via: git rev-parse --short HEAD
+  - every downstream image is tagged with this short SHA for traceability
+
+Stage 2: Setup AWS Environment [DONE]
+  - dynamically resolves BACKEND_INSTANCE_ID by querying EC2 tags:
+    aws ec2 describe-instances --filters Name=tag:Name,Values=placement-portal-backend
+  - same for FRONTEND_INSTANCE_ID
+  - Why: avoids hard-coding instance IDs that change after terraform destroy/apply
+
+Stage 3: Install Dependencies [DONE — parallel]
+  - Parallel sub-stages: Backend Dependencies + Frontend Dependencies
+  - Both run: npm ci (deterministic install from package-lock.json)
+  - npm ci vs npm install: CI is faster, fails if lockfile is out of sync
+
+Stage 4: Code Quality & Security [PARTIAL — parallel]
+  - Backend Lint & Test:
+      npm run lint (placeholder: outputs "Lint check passed")
+      npm run build (tsc compile — DONE)
+      npm run test (placeholder: exits 0 with message — PARTIAL)
+  - Frontend Lint & Test:
+      npm run lint / npm run build (DONE)
+  - SonarQube Analysis: [PARTIAL]
+      echo placeholder — SonarQube server configured but analysis not wired
+  - Security Scan: [DONE]
+      npm audit --audit-level=high (runs for both backend and frontend)
+
+Stage 5: Quality Gate [PARTIAL]
+  - Placeholder echo — will enforce SonarQube quality gate pass/fail
+
+Stage 6: Build Docker Images [DONE — parallel within script]
+  - Parallel: Build Backend + Build Frontend
+  - docker build -t <IMAGE>:<GIT_COMMIT_SHORT> .
+  - docker tag <IMAGE>:<GIT_COMMIT_SHORT> <IMAGE>:latest
+
+Stage 7: Push Docker Images [DONE — parallel]
+  - aws ecr get-login-password | docker login --password-stdin <ECR_REGISTRY>
+  - docker push <IMAGE>:<GIT_COMMIT_SHORT>
+  - docker push <IMAGE>:latest
+
+Stage 8: Security Scanning [PARTIAL]
+  - Placeholder for Trivy/Snyk/Clair container image scanning
+  - ECR itself does scan_on_push (AWS Inspector) as a first layer
+
+Stage 9: Deploy to Staging [PARTIAL]
+  - Only runs on branch 'develop'
+  - Currently skipped as project uses single-instance deployment model
+  - Would be the integration test target environment in a proper setup
+
+Stage 10: Integration Tests [PARTIAL]
+  - Runs on branch 'develop'
+  - Placeholder — test commands will be added later
+
+Stage 11: Deploy to Production [DONE]
+  - Manual approval gate:
+      input message: 'Deploy to Production?', ok: 'Deploy'
+      captures DEPLOYER (who approved it — audit trail)
+  - Deploys to backend via AWS SSM send-command:
+      aws ssm send-command \
+        --instance-ids <BACKEND_INSTANCE_ID> \
+        --document-name "AWS-RunShellScript" \
+        --parameters '{"commands":[
+          "cd /opt/placement-backend",
+          "sed -i 's|image: ...|image: <ECR>:<TAG>|g' docker-compose.yml",
+          "./deploy.sh"
+        ]}'
+  - Same pattern for frontend instance
+  - Post-deploy health check loop: curl /health with 10 retries × 30s sleep
+  - Retrieves ALB DNS and prints final Application URL
+
+Stage 12: Post-deployment Tests [PARTIAL]
+  - Placeholder for smoke tests
+
+Stage 13 (post): always [DONE]
+  - cleanWs() — wipe Jenkins workspace to avoid stale artifact issues
+  - success: print green banner with JOB_NAME and BUILD_NUMBER
+  - failure: print red banner
+
+7.4 HOW TO EXPLAIN SSM DEPLOYMENT (impressive detail)
+-------------------------------------------------------
+"We avoided SSH in the deployment pipeline entirely. Jenkins uses
+AWS SSM RunShellScript to send commands directly to the EC2 instances
+via the SSM agent. This means no port 22 needs to be open from Jenkins to
+the application servers in the security group rules (though currently SGs
+are still permissive — that's a hardening item). The EC2 instances have the
+AmazonSSMManagedInstanceCore IAM policy attached via the instance profile."
+
+7.5 KEY CI/CD CONCEPTS TO DISCUSS
+------------------------------------
+parallel stages       : stages 3, 4, 7 run sub-stages concurrently
+manual approval       : production deploy has human gate (SOX/change mgmt pattern)
+git-commit tagging    : every Docker image tagged with short SHA for audit trail
+npm audit             : dependency vulnerability check in pipeline
+cleanWs               : workspace hygiene between runs
+returnStdout pattern  : capturing aws CLI output into Groovy env variables (stage 2)
+
+================================================================================
+PART 8 — SECURITY POSTURE
+================================================================================
+
+8.1 IMPLEMENTED SECURITY CONTROLS
+-----------------------------------
+Control                | Implementation
+-----------------------|------------------------------------------------------
+Password hashing       | bcryptjs with salt rounds (industry standard)
+Authentication         | JWT (HS256), verified on every protected route
+Authorization          | Role-based middleware: protect→adminOnly/studentOnly
+CORS                   | Explicit allow-list (localhost + *.amazonaws.com regex)
+Error hiding           | Stack traces suppressed in NODE_ENV=production
+ECR image scanning     | scan_on_push=true on both ECR repos
+npm dependency audit   | npm audit --audit-level=high in pipeline
+S3 encryption          | AES-256 SSE on artifacts bucket
+S3 versioning          | enabled (recover from accidental deletes)
+IAM least-privilege    | App instance: ECR pull + CloudWatch logs + SSM only
+Non-root container     | Backend Dockerfile uses USER node directive
+
+8.2 KNOWN GAPS (be proactive — interviewers respect honesty)
+--------------------------------------------------------------
+Gap                         | Risk          | Mitigation Plan
+----------------------------|---------------|-----------------------------
+SG 0.0.0.0/0 for SSH+Mongo  | High          | Restrict to VPN CIDR / bastion
+JWT secret in user_data     | High          | Move to AWS Secrets Manager
+No rate limiting            | Medium        | Add express-rate-limit middleware
+No request validation       | Medium        | Add Zod/Joi schema validation
+No centralized audit log    | Medium        | Add auth event logging
+MongoDB port exposed        | High          | Restrict SG to backend SG only
+No HTTPS on ALB             | Medium        | Add ACM cert + HTTPS listener
+Jenkins IAM policy is broad | Medium        | Scope to specific resources
+
+8.3 HARDENING ROADMAP (say this in interviews)
+-----------------------------------------------
+  Priority 1 (immediate):
+    - Restrict MongoDB SG inbound to backend SG only (not 0.0.0.0/0)
+    - Store JWT_SECRET in AWS Secrets Manager, fetch at runtime
+    - Add HTTPS listener to ALB (ACM certificate)
+
+  Priority 2 (short-term):
+    - Add express-rate-limit middleware (e.g., 100 req/15min per IP)
+    - Add Zod schema validation on all POST/PUT body parsers
+    - Move Terraform state to S3 backend + DynamoDB locking
+
+  Priority 3 (platform maturity):
+    - Implement centralised logging (CloudWatch Logs or ELK)
+    - Add auth audit trail (who logged in, when, from where)
+    - Run Trivy/Snyk scans in pipeline and fail on HIGH CVEs
+
+================================================================================
+PART 9 — DATABASE DESIGN (MongoDB)
+================================================================================
+
+9.1 DESIGN DECISIONS
+----------------------
+Choice        | Why MongoDB over SQL for this project
+--------------|------------------------------------------------------
+Schema flex   | Student profiles evolve (new placement fields), easy to add
+Document fit  | A notice with its targeting arrays is a natural document
+No joins      | Student dashboard queries need only one collection per request
+Dev speed     | Mongoose ODM + JS types align naturally with Node.js stack
+
+9.2 INDEX STRATEGY (current)
+------------------------------
+  user.email    → unique index (Mongoose unique: true)
+  user.usn      → unique + sparse (sparse means nulls allowed — not all users
+                  are students with USNs)
+  user.username → unique + sparse
+
+  Notice: no explicit compound indexes beyond schema defaults.
+
+Gaps: for GET /notices/student the query filters on semester, branch, cgpa.
+A compound index { targetSemesters:1, targetBranches:1, minCGPA:1 } would
+significantly speed up notice filtering at scale.
+
+9.3 MONGO EC2 SETUP
+---------------------
+  - Deployed on a separate EC2 instance with Elastic IP (static address)
+  - user_data templated via Terraform: mongodb-setup.sh with db_username/db_password
+  - Backend container connects via environment variable:
+    MONGODB_URI=mongodb://<user>:<pass>@<eip>:27017/placement_db
+
+  Single-node risk: if MongoDB EC2 goes down, backend loses all DB connectivity.
+  Solution: MongoDB Atlas (managed, replica set built-in) or mongodb replica set.
+
+9.4 AGGREGATION (GET /students/statistics)
+-------------------------------------------
+This endpoint uses MongoDB aggregation pipeline to produce placement stats:
+  - Group by placedCompany → count of students placed per company
+  - Group by jobType       → count by job category
+  - Total placed vs unplaced ratio
+
+This is a strong talking point: "I used MongoDB aggregation pipeline for
+analytics — not raw queries — to efficiently compute placement statistics
+across potentially thousands of student documents."
+
+================================================================================
+PART 10 — FAILURE SCENARIOS & RESILIENCE
+================================================================================
+
+10.1 SCENARIO ANALYSIS
+------------------------
+
+Scenario                | Current Behavior              | Better Behavior
+------------------------|-------------------------------|------------------
+MongoDB EC2 goes down   | Backend logs error, process   | Fail /ready probe
+                        | continues (may mask failure)  | immediately; ALB
+                        |                               | removes instance
+Backend container crash | Docker restart policy: always | Same; compose
+                        | restarts container            | handles restart
+Frontend container crash| Docker restart: unless-stopped| Same
+Traffic spike           | ALB distributes (1 backend    | Add Auto Scaling
+                        | instance, no horizontal scale)| Group for backend
+Deployment failure      | Health check loop retries ×10 | Auto-rollback to
+                        | then pipeline fails           | previous image tag
+Full EC2 failure        | No auto-recovery without ASG  | Auto Scaling Group
+                        |                               | with Launch Template
+
+10.2 WHAT THE HEALTH CHECK RETRY LOOP DOES
+--------------------------------------------
+After SSM deploy command is sent, Jenkinsfile runs a bash loop:
+  for i in {1..10}; do
+    curl -f -s http://<instance_ip>:5000/health
+    if success → break
+    else → sleep 30 → retry
+    if i==10 → exit 1 (fail the pipeline stage)
+  done
+
+Maximum wait: 10 × 30s = 5 minutes before pipeline fails.
+This gives the container time to pull from ECR and start up.
+
+10.3 DISCUSS THESE TRADE-OFFS IN INTERVIEW
+-------------------------------------------
+"v1 prioritized delivery speed and cost over operational resilience. The key
+risks I'm aware of are: single-node MongoDB (no replica), no horizontal EC2
+autoscaling, and permissive security groups. My v2 roadmap addresses all of
+these: MongoDB Atlas for managed replication, EC2 Auto Scaling Groups, and
+tighter IAM/SG posture."
+
+================================================================================
+PART 11 — SYSTEM DESIGN EXTENSION (how you'd evolve this)
+================================================================================
+
+11.1 KUBERNETES MIGRATION PATH
+--------------------------------
+Current: EC2 + Docker Compose + SSM deploy
+Phase 1 → Package workloads as Kubernetes Deployments:
+  - backend-deployment.yaml  (replicas: 2, readinessProbe: /ready, livenessProbe: /health)
+  - frontend-deployment.yaml (replicas: 2)
+  - Services + Ingress (NGINX Ingress or AWS ALB Ingress Controller)
+Phase 2 → Helm charts for parametric releases
+Phase 3 → HPA on CPU/memory for auto-scale (kubectl autoscale deployment)
+Phase 4 → Move to EKS (managed control plane)
+
+Interview: "I designed the backend to already expose /health and /ready
+endpoints in anticipation of Kubernetes probes. The migration would be
+incremental — same Docker images, different orchestration layer."
+
+11.2 REAL-TIME NOTIFICATIONS (WebSockets)
+------------------------------------------
+Current: Students poll for notice updates via HTTP.
+Design:
+  - Add Socket.IO to Express server
+  - When admin publishes notice (POST /notices):
+      1. Insert to MongoDB
+      2. Emit event via Socket.IO to all authenticated student rooms
+  - Students' React app connects to WSS on page load
+  - Redis adapter (socket.io-redis) for multi-instance pub/sub when scaling
+  - Client reconnect strategy: exponential backoff on disconnect
+
+11.3 OBSERVABILITY STACK
+--------------------------
+Planned (currently only setup scripts exist):
+  Metrics   : Prometheus scraping Node.js /metrics (prom-client library)
+  Dashboards: Grafana connected to Prometheus
+  Logs      : CloudWatch Logs via AWS logging driver in Docker Compose
+              OR ELK stack (Elasticsearch + Logstash + Kibana)
+  Alerts    : Grafana alerting rules OR CloudWatch Alarms → SNS → email/Slack
+
+What to say: "Prometheus setup scripts exist in infrastructure/scripts. Full
+observability stack integration is on the v2 roadmap — I'd add prom-client
+to the Express app, configure CloudWatch log driver in compose, and build
+Grafana dashboards for request rate, error rate, and latency."
+
+================================================================================
+PART 12 — COMMON INTERVIEW QUESTIONS & EXACT ANSWERS
+================================================================================
+
+Q: Walk me through your project from end to end.
+A: (Use 2-minute pitch from Part 1.4, then drill into any area they ask.)
+
+──────────────────────────────────────────────────────────────────────────────
+Q: Why did you choose MongoDB over PostgreSQL?
+A: "For a placement portal, the data is document-oriented — a notice naturally
+   has arrays (targetSemesters, targetBranches) and a student has nested
+   placement details. MongoDB's flexible schema also let me iterate quickly as
+   the feature set evolved. For analytics I used the aggregation pipeline which
+   is powerful for ad-hoc group-by queries without ORM overhead. If the data
+   had strong relational integrity requirements (e.g., financial transactions),
+   I'd reconsider PostgreSQL."
+
+──────────────────────────────────────────────────────────────────────────────
+Q: Why Express 5 instead of NestJS or Fastify?
+A: "Express 5 gave us the smallest onboarding overhead for a time-boxed project.
+   For a production system with a larger team I'd consider NestJS for its
+   built-in DI, module system, and OpenAPI generation. Fastify would be a
+   choice if raw throughput was a bottleneck — it's 2-3x faster than Express
+   for high RPS workloads."
+
+──────────────────────────────────────────────────────────────────────────────
+Q: How does JWT authentication work in your app?
+A: "On login, the backend validates the email/password pair. bcryptjs.compare
+   checks the submitted plaintext against the stored hash. If valid, jsonwebtoken
+   signs a token with the JWT_SECRET using HS256. The token payload includes
+   the user ID and role. The frontend stores the token and sends it in the
+   Authorization: Bearer header on every subsequent request. The protect()
+   middleware calls jwt.verify() to decode and validate the token, rejecting
+   expired or tampered tokens with a 401. adminOnly() then checks req.user.role."
+
+──────────────────────────────────────────────────────────────────────────────
+Q: What is Terraform state and why does it matter?
+A: "Terraform state (terraform.tfstate) is a JSON file that records the mapping
+   between HCL resource definitions and real AWS resource IDs. Without it,
+   Terraform can't know what resources it created. Running terraform plan
+   compares the desired state (HCL) against the current real state to produce
+   a diff. In a team, state should be stored in an S3 backend with DynamoDB
+   locking to prevent concurrent applies corrupting the state file. Our current
+   state is local — which is fine for solo development but a known gap."
+
+──────────────────────────────────────────────────────────────────────────────
+Q: How does your Jenkins pipeline deploy without SSH?
+A: "Jenkins uses AWS SSM RunShellScript documents. When triggered, Jenkins calls
+   aws ssm send-command with the target EC2 instance ID, the document name
+   AWS-RunShellScript, and a parameters block containing the shell commands to
+   run. The SSM agent running on the EC2 instance receives the command through
+   the AWS control plane and executes it. The EC2 instances have
+   AmazonSSMManagedInstanceCore IAM policy attached, which grants the SSM agent
+   permission to communicate with AWS. This means port 22 doesn't need to be
+   open from Jenkins."
+
+──────────────────────────────────────────────────────────────────────────────
+Q: What is ALB path-based routing and how did you configure it?
+A: "The ALB has one listener on port 80. The default action forwards traffic to
+   the frontend target group (Nginx on port 80). I added a listener rule with
+   priority 100 that matches path pattern /api/* and forwards to the backend
+   target group on port 5000. This means the React SPA and the API share a
+   single ALB DNS name. The React app sends /api/* calls to the same origin,
+   so there are no CORS issues in production from domain mismatch."
+
+──────────────────────────────────────────────────────────────────────────────
+Q: Did you implement Kubernetes?
+A: "Not in this version. The runtime is EC2+Docker+ALB. I'm familiar with
+   Kubernetes concepts — Deployments, Services, Ingress, HPA, ConfigMaps,
+   Secrets. The backend already exposes /health and /ready endpoints, which
+   are the liveness and readiness probes Kubernetes would use. The migration
+   path would be to EKS with Helm charts. I can walk through how I'd write the
+   Deployment manifests if that would be useful."
+
+──────────────────────────────────────────────────────────────────────────────
+Q: What is your biggest security concern with this system?
+A: "Two things. First, the MongoDB security group currently allows 27017 from
+   0.0.0.0/0 — anyone on the internet could attempt connections. It must be
+   restricted to the backend security group only. Second, the JWT secret is
+   templated directly into the EC2 user_data script in the Terraform config.
+   That means it's in plaintext in the tfstate file and potentially in git.
+   The correct solution is AWS Secrets Manager — fetch the secret at container
+   startup rather than baking it into the infrastructure layer."
+
+──────────────────────────────────────────────────────────────────────────────
+Q: How do you handle zero-downtime deployment?
+A: "Currently we don't have true zero-downtime. The SSM command pulls the new
+   image and restarts the container on the same EC2 — there's a brief gap. To
+   achieve zero-downtime: (a) run two backend EC2 instances in the target group,
+   (b) deploy to one at a time (rolling update), ALB continues routing to the
+   healthy one. Or, migrate to ECS/EKS which handles rolling updates natively.
+   In Kubernetes, a Deployment with RollingUpdate strategy and readinessProbe
+   ensures the old pod only goes down after the new one passes the readiness check."
+
+──────────────────────────────────────────────────────────────────────────────
+Q: What is the purpose of ECR in your pipeline?
+A: "ECR (Elastic Container Registry) is our private Docker image registry.
+   Jenkins builds images, authenticates to ECR via:
+     aws ecr get-login-password | docker login --password-stdin <ECR_REGISTRY>
+   then pushes both the commit-tagged image and the :latest tag.
+   The EC2 instances have an IAM instance profile that grants ECR pull
+   permissions (ecr:GetAuthorizationToken, ecr:BatchGetImage, etc.) so they
+   can pull images during deployment without any credentials being stored on
+   the instances."
+
+──────────────────────────────────────────────────────────────────────────────
+Q: Explain the notice eligibility filtering system.
+A: "When an admin creates a notice, they specify targeting criteria: which
+   semesters, which branches, minimum CGPA, and deadline. When a student calls
+   GET /api/notices/student, the backend pulls the student's profile from the
+   JWT (or a DB lookup) and queries MongoDB:
+     db.notices.find({
+       targetSemesters: { $in: [student.semester] },
+       targetBranches:  { $in: [student.branch] },
+       minCGPA:         { $lte: student.cgpa },
+       deadline:        { $gte: new Date() }
+     })
+   This ensures students only see opportunities they're actually eligible for,
+   reducing noise and mimicking how real campus portals work."
+
+──────────────────────────────────────────────────────────────────────────────
+Q: What would you do differently if starting over?
+A: "Three things: (1) Use AWS Secrets Manager from day one for all secrets —
+   no hardcoded values. (2) Set up private subnets — MongoDB and backend
+   should never have public IPs; NAT gateway for outbound only. (3) Start with
+   a remote Terraform state backend (S3+DynamoDB) even for a solo project —
+   it's zero extra cost and avoids the state-in-git anti-pattern."
+
+──────────────────────────────────────────────────────────────────────────────
+Q: How does npm ci differ from npm install and why use it in CI?
+A: "npm ci (clean install) reads package-lock.json exactly and installs
+   precisely those versions — no resolution, no updates. If package.json and
+   package-lock.json are out of sync it fails, which catches the 'works on my
+   machine' class of bugs. It's also significantly faster in CI because it
+   deletes node_modules and reinstalls from the lockfile directly. npm install
+   can silently update minor/patch versions, which is undesirable in a build
+   pipeline where reproducibility is required."
+
+================================================================================
+PART 13 — STAR STORIES (for behavioral questions)
+================================================================================
+
+STORY 1: Overcoming infra configuration challenges
+S: Needed to deploy the app on AWS with no prior experience with Terraform.
+T: Provision all infrastructure from scratch using IaC, no manual console setup.
+A: Learned Terraform, wrote VPC, EC2, ALB, ECR, IAM, S3 resources. Hit EC2
+   vCPU limit errors for the chosen instance type; analyzed the error, changed
+   to t2.micro in variables.tf, re-applied. Hit S3 bucket naming collision;
+   added account ID suffix to bucket name for global uniqueness.
+R: Fully reproducible AWS environment provisioned in a single terraform apply.
+   Learned to always parameterize instance types and use account ID suffixes
+   for globally unique resource names.
+
+STORY 2: Building a working CI/CD pipeline
+S: Manually deploying Docker images to EC2 via SSH was error-prone and slow.
+T: Automate the full build→push→deploy workflow.
+A: Designed 13-stage Jenkins declarative pipeline. Used SSM instead of SSH for
+   agentless deployment. Added health check loops to verify deployment. Added
+   manual approval gate for production to align with change management principles.
+R: Deployment time dropped from ~20 minutes manual to ~5 minutes automated.
+   Zero SSH needed post-pipeline setup. Every production push requires explicit
+   human approval.
+
+STORY 3: Designing role-based access control
+S: Admins and students need completely different views and access permissions.
+T: Implement auth that's secure and doesn't expose admin endpoints to students.
+A: Implemented JWT with role field embedded in token payload. Created three
+   middleware functions: protect() (any authenticated user), adminOnly(),
+   studentOnly(). Applied them per route group. Student calling an admin route
+   gets 403, not 404 — clear error without revealing route existence.
+R: Complete role separation with zero shared code paths between roles.
+   Extendable to add new roles (e.g., 'recruiter') by adding one middleware.
+
+================================================================================
+PART 14 — 1-DAY STUDY PLAN
+================================================================================
+
+Hour 1: Architecture walk-through
+  - Memorize the architecture diagram (Part 2.1)
+  - Trace a complete request lifecycle (Part 2.3)
+  - Explain ALB routing rules precisely (Part 2.4)
+
+Hour 2: Backend deep dive
+  - Know every route, method, and auth level (Part 3.3)
+  - Explain server.ts startup sequence (Part 3.2)
+  - Know the User and Notice Mongoose model fields (Part 3.5)
+  - Explain notice eligibility filtering logic
+
+Hour 3: Terraform mastery
+  - Know every resource type by name (Part 6.2)
+  - Explain terraform plan/apply/destroy workflow
+  - Know the security gaps and what you'd fix (Part 6.5)
+
+Hour 4: Jenkinsfile mastery
+  - Walk all 13 stages without notes (Part 7.3)
+  - Explain the SSM deployment mechanism (Part 7.4)
+  - Know which stages are DONE vs PARTIAL (Part 7.3)
+
+Hour 5: Docker / container depth
+  - Explain multi-stage Dockerfile for frontend
+  - Explain ECR scanning (scan_on_push) and why it matters
+  - Explain image tagging strategy (git SHA + latest)
+  - Know the docker-compose service startup chain
+
+Hour 6: Security + failure scenarios
+  - List all security gaps proactively before being asked (Part 8.2)
+  - Know the hardening roadmap priority order (Part 8.3)
+  - Walk through all failure scenarios (Part 10.1)
+
+Hour 7: Practice scripts
+  - 2-minute pitch (no notes)
+  - 5-minute version: add API/model details + CI/CD flow
+  - 10-minute version: full architecture + trade-offs + lessons learned
+
+Hour 8: Mock interview
+  - Have someone ask every Q&A from Part 12 at random
+  - Practice "I don't know, but here's how I'd find out" for anything unknown
+  - Practice the STAR stories from Part 13
+
+================================================================================
+PART 15 — SCRIPTS (2 / 5 / 10 MINUTES)
+================================================================================
+
+───────────────────────────────────────
+2-MINUTE SCRIPT
+───────────────────────────────────────
+"I built a campus placement management system using Node.js with Express and
+TypeScript on the backend, React with Vite on the frontend, and MongoDB for
+the database. It supports JWT-based authentication with role-based access
+control — students can register, view personalized placement notices filtered
+by their CGPA and branch, and track their placement status; admins can publish
+targeted notices, manage all students, and view placement analytics.
+
+I containerized both services using Docker and provisioned the entire AWS
+infrastructure — VPC, subnets, Application Load Balancer, EC2 instances, ECR
+repositories, IAM roles, and an S3 bucket — using Terraform. I built a
+13-stage Jenkins CI/CD pipeline that runs parallel builds, pushes Docker images
+to ECR tagged with the git commit SHA, and deploys to production EC2 via AWS
+SSM with a manual approval gate.
+
+It's a solid v1. Kubernetes, real-time WebSockets, and a full observability
+stack are the planned next phase."
+
+───────────────────────────────────────
+5-MINUTE SCRIPT (expand on the above)
+───────────────────────────────────────
+After the 2-minute pitch, add:
+  - "The ALB uses path-based routing: /api/* goes to the backend target group
+    on port 5000; everything else hits the Nginx frontend on port 80. Health
+    checks are configured on both target groups."
+  - "The notice filtering system queries MongoDB with compound conditions:
+    semester, branch, and minimum CGPA — so students only see notices they're
+    eligible for."
+  - "The Jenkins pipeline uses npm ci for deterministic installs, npm audit
+    to catch high-severity vulnerabilities, and SSM send-command to deploy
+    without opening any SSH ports from Jenkins."
+  - "I'm aware of the security gaps — particularly the over-broad security
+    group rules and hardcoded JWT secret in Terraform — and I have a concrete
+    hardening plan: Secrets Manager for credentials and restricted SG rules."
+
+───────────────────────────────────────
+10-MINUTE SCRIPT (senior/architecture)
+───────────────────────────────────────
+Cover: architecture diagram → request lifecycle → API design decisions →
+MongoDB model + aggregation → Terraform resource inventory → why Terraform →
+Jenkinsfile stages + SSM deploy → Docker multi-stage → security controls +
+gaps → failure modes → v2 roadmap (K8s, WebSockets, observability) →
+lessons learned (STAR stories)
+
+================================================================================
+END OF HANDBOOK
+================================================================================

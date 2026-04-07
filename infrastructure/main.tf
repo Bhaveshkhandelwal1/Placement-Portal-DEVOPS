@@ -91,49 +91,6 @@ resource "aws_subnet" "public" {
   }
 }
 
-# Private Subnets
-resource "aws_subnet" "private" {
-  count = 2
-
-  vpc_id            = aws_vpc.main.id
-  cidr_block        = cidrsubnet(var.vpc_cidr, 8, count.index + 10)
-  availability_zone = data.aws_availability_zones.available.names[count.index]
-
-  tags = {
-    Name        = "${var.project_name}-private-${count.index + 1}"
-    Environment = var.environment
-    Type        = "private"
-  }
-}
-
-# Elastic IPs for NAT Gateways
-resource "aws_eip" "nat" {
-  count = 2
-
-  domain = "vpc"
-  depends_on = [aws_internet_gateway.main]
-
-  tags = {
-    Name        = "${var.project_name}-nat-eip-${count.index + 1}"
-    Environment = var.environment
-  }
-}
-
-# NAT Gateways
-resource "aws_nat_gateway" "main" {
-  count = 2
-
-  allocation_id = aws_eip.nat[count.index].id
-  subnet_id     = aws_subnet.public[count.index].id
-
-  tags = {
-    Name        = "${var.project_name}-nat-${count.index + 1}"
-    Environment = var.environment
-  }
-
-  depends_on = [aws_internet_gateway.main]
-}
-
 # Route Tables
 resource "aws_route_table" "public" {
   vpc_id = aws_vpc.main.id
@@ -149,22 +106,6 @@ resource "aws_route_table" "public" {
   }
 }
 
-resource "aws_route_table" "private" {
-  count = 2
-
-  vpc_id = aws_vpc.main.id
-
-  route {
-    cidr_block     = "0.0.0.0/0"
-    nat_gateway_id = aws_nat_gateway.main[count.index].id
-  }
-
-  tags = {
-    Name        = "${var.project_name}-private-rt-${count.index + 1}"
-    Environment = var.environment
-  }
-}
-
 # Route Table Associations
 resource "aws_route_table_association" "public" {
   count = 2
@@ -173,12 +114,6 @@ resource "aws_route_table_association" "public" {
   route_table_id = aws_route_table.public.id
 }
 
-resource "aws_route_table_association" "private" {
-  count = 2
-
-  subnet_id      = aws_subnet.private[count.index].id
-  route_table_id = aws_route_table.private[count.index].id
-}
 
 
 
@@ -419,11 +354,11 @@ resource "aws_lb_listener_rule" "backend" {
 
 # EC2 Instance for Jenkins
 resource "aws_instance" "jenkins" {
-  ami           = data.aws_ami.ubuntu.id
-  instance_type = "t3.micro"  # 2 vCPU, 4 GB RAM - much better for Jenkins
-  subnet_id     = aws_subnet.public[0].id
+  ami                    = data.aws_ami.ubuntu.id
+  instance_type          = "t3.micro" # 2 vCPU, 4 GB RAM - much better for Jenkins
+  subnet_id              = aws_subnet.public[0].id
   vpc_security_group_ids = [aws_security_group.jenkins.id]
-  key_name      = "placement-portal-key"
+  key_name               = "placement-portal-key"
 
   user_data = templatefile("${path.module}/scripts/jenkins-setup-ubuntu.sh", {
     aws_region = var.aws_region
@@ -448,11 +383,11 @@ resource "aws_eip" "jenkins" {
 
 # EC2 Instance for MongoDB
 resource "aws_instance" "mongodb" {
-  ami           = data.aws_ami.ubuntu.id
-  instance_type = "t3.micro"  # 2 vCPU, 2 GB RAM - good for MongoDB
-  subnet_id     = aws_subnet.public[0].id
+  ami                    = data.aws_ami.ubuntu.id
+  instance_type          = "t3.micro" # 2 vCPU, 2 GB RAM - good for MongoDB
+  subnet_id              = aws_subnet.public[0].id
   vpc_security_group_ids = [aws_security_group.mongodb.id]
-  key_name      = "placement-portal-key"
+  key_name               = "placement-portal-key"
 
   user_data = templatefile("${path.module}/scripts/mongodb-setup.sh", {
     db_username = var.db_username
@@ -466,21 +401,7 @@ resource "aws_instance" "mongodb" {
   }
 }
 
-# EC2 Instance for SonarQube
-resource "aws_instance" "sonarqube" {
-  ami           = data.aws_ami.ubuntu.id
-  instance_type = "t3.micro"  # 2 vCPU, 4 GB RAM - much better for SonarQube
-  subnet_id     = aws_subnet.public[1].id
-  vpc_security_group_ids = [aws_security_group.sonarqube.id]
-  key_name      = "placement-portal-key"
 
-  user_data = file("${path.module}/scripts/sonarqube-setup-ubuntu.sh")
-
-  tags = {
-    Name        = "${var.project_name}-sonarqube"
-    Environment = var.environment
-  }
-}
 
 # Elastic IP for MongoDB
 resource "aws_eip" "mongodb" {
@@ -493,16 +414,6 @@ resource "aws_eip" "mongodb" {
   }
 }
 
-# Elastic IP for SonarQube
-resource "aws_eip" "sonarqube" {
-  instance = aws_instance.sonarqube.id
-  domain   = "vpc"
-
-  tags = {
-    Name        = "${var.project_name}-sonarqube-eip"
-    Environment = var.environment
-  }
-}
 
 # IAM Role for Application Instances
 resource "aws_iam_role" "app_instance" {
@@ -594,18 +505,18 @@ resource "aws_iam_instance_profile" "app_instance" {
 
 # EC2 Instance for Backend
 resource "aws_instance" "backend" {
-  ami           = data.aws_ami.ubuntu.id
-  instance_type = var.backend_instance_type
-  subnet_id     = aws_subnet.public[0].id
+  ami                    = data.aws_ami.ubuntu.id
+  instance_type          = var.backend_instance_type
+  subnet_id              = aws_subnet.public[0].id
   vpc_security_group_ids = [aws_security_group.backend.id]
-  key_name      = "placement-portal-key"
-  iam_instance_profile = aws_iam_instance_profile.app_instance.name
+  key_name               = "placement-portal-key"
+  iam_instance_profile   = aws_iam_instance_profile.app_instance.name
 
   user_data = templatefile("${path.module}/scripts/backend-setup.sh", {
-    aws_region    = var.aws_region
-    ecr_registry  = "${data.aws_caller_identity.current.account_id}.dkr.ecr.${var.aws_region}.amazonaws.com"
-    mongodb_uri   = "mongodb://${aws_eip.mongodb.public_ip}:27017/placement_db"
-    jwt_secret    = "your-super-secure-jwt-secret-key-here-min-32-chars"
+    aws_region   = var.aws_region
+    ecr_registry = "${data.aws_caller_identity.current.account_id}.dkr.ecr.${var.aws_region}.amazonaws.com"
+    mongodb_uri  = "mongodb://${aws_eip.mongodb.public_ip}:27017/placement_db"
+    jwt_secret   = "your-super-secure-jwt-secret-key-here-min-32-chars"
   })
 
   depends_on = [aws_instance.mongodb, aws_eip.mongodb]
@@ -619,12 +530,12 @@ resource "aws_instance" "backend" {
 
 # EC2 Instance for Frontend
 resource "aws_instance" "frontend" {
-  ami           = data.aws_ami.ubuntu.id
-  instance_type = var.frontend_instance_type
-  subnet_id     = aws_subnet.public[1].id
+  ami                    = data.aws_ami.ubuntu.id
+  instance_type          = var.frontend_instance_type
+  subnet_id              = aws_subnet.public[1].id
   vpc_security_group_ids = [aws_security_group.frontend.id]
-  key_name      = "placement-portal-key"
-  iam_instance_profile = aws_iam_instance_profile.app_instance.name
+  key_name               = "placement-portal-key"
+  iam_instance_profile   = aws_iam_instance_profile.app_instance.name
 
   user_data = templatefile("${path.module}/scripts/frontend-setup.sh", {
     aws_region   = var.aws_region
@@ -724,39 +635,6 @@ resource "aws_security_group" "jenkins" {
   }
 }
 
-# Security Group for SonarQube
-resource "aws_security_group" "sonarqube" {
-  name_prefix = "${var.project_name}-sonarqube-"
-  vpc_id      = aws_vpc.main.id
-
-  ingress {
-    description = "SonarQube Web UI"
-    from_port   = 9000
-    to_port     = 9000
-    protocol    = "tcp"
-    cidr_blocks = ["0.0.0.0/0"]
-  }
-
-  ingress {
-    description = "SSH"
-    from_port   = 22
-    to_port     = 22
-    protocol    = "tcp"
-    cidr_blocks = ["0.0.0.0/0"]
-  }
-
-  egress {
-    from_port   = 0
-    to_port     = 0
-    protocol    = "-1"
-    cidr_blocks = ["0.0.0.0/0"]
-  }
-
-  tags = {
-    Name        = "${var.project_name}-sonarqube-sg"
-    Environment = var.environment
-  }
-}
 
 # IAM Role for Jenkins
 resource "aws_iam_role" "jenkins" {
@@ -815,7 +693,7 @@ resource "aws_iam_instance_profile" "jenkins" {
 
 # AWS S3 bucket for storing artifacts
 resource "aws_s3_bucket" "artifacts" {
-  bucket = "${var.project_name}-${var.environment}-artifacts"
+  bucket = "${var.project_name}-${var.environment}-artifacts-${data.aws_caller_identity.current.account_id}"
 
   tags = {
     Name        = "${var.project_name}-artifacts"

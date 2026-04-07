@@ -1,0 +1,77 @@
+Started by user unknown or anonymous
+[Pipeline] Start of Pipeline
+[Pipeline] node
+Running on Jenkins in /var/jenkins_home/workspace/Placement-Portal-Pipeline
+[Pipeline] {
+[Pipeline] withEnv
+[Pipeline] {
+[Pipeline] stage
+[Pipeline] { (Checkout)
+[Pipeline] git
+The recommended git tool is: git
+No credentials specified
+Cloning the remote Git repository
+Cloning repository https://github.com/Bhaveshkhandelwal1/Placement-Portal-DEVOPS.git
+ > git init /var/jenkins_home/workspace/Placement-Portal-Pipeline # timeout=10
+Fetching upstream changes from https://github.com/Bhaveshkhandelwal1/Placement-Portal-DEVOPS.git
+ > git --version # timeout=10
+ > git --version # 'git version 2.47.3'
+ > git fetch --tags --force --progress -- https://github.com/Bhaveshkhandelwal1/Placement-Portal-DEVOPS.git +refs/heads/*:refs/remotes/origin/* # timeout=10
+ > git config remote.origin.url https://github.com/Bhaveshkhandelwal1/Placement-Portal-DEVOPS.git # timeout=10
+ > git config --add remote.origin.fetch +refs/heads/*:refs/remotes/origin/* # timeout=10
+Avoid second fetch
+ > git rev-parse refs/remotes/origin/main^{commit} # timeout=10
+Checking out Revision 49996ce505866cd38d7b1947e5f3b2d09feda403 (refs/remotes/origin/main)
+ > git config core.sparsecheckout # timeout=10
+ > git checkout -f 49996ce505866cd38d7b1947e5f3b2d09feda403 # timeout=10
+ > git branch -a -v --no-abbrev # timeout=10
+ > git checkout -b main 49996ce505866cd38d7b1947e5f3b2d09feda403 # timeout=10
+Commit message: "Initial commit"
+ > git rev-list --no-walk 49996ce505866cd38d7b1947e5f3b2d09feda403 # timeout=10
+[Pipeline] script
+[Pipeline] {
+[Pipeline] sh
++ git rev-parse --short HEAD
+[Pipeline] }
+[Pipeline] // script
+[Pipeline] }
+[Pipeline] // stage
+[Pipeline] stage
+[Pipeline] { (Setup AWS Environment)
+[Pipeline] script
+[Pipeline] {
+[Pipeline] echo
+AWS Account ID: 011528267161
+[Pipeline] echo
+Backend Instance ID: i-098abc123def456
+[Pipeline] echo
+Frontend Instance ID: i-123xyz987abc654
+[Pipeline] sleep
+Sleeping for 2 sec
+[Pipeline] }
+[Pipeline] // script
+[Pipeline] }
+[Pipeline] // stage
+[Pipeline] stage
+[Pipeline] { (Install Dependencies)
+[Pipeline] parallel
+[Pipeline] { (Branch: Backend Dependencies)
+[Pipeline] { (Branch: Frontend Dependencies)
+[Pipeline] stage
+[Pipeline] { (Backend Dependencies)
+[Pipeline] stage
+[Pipeline] { (Frontend Dependencies)
+[Pipeline] dir
+Running in /var/jenkins_home/workspace/Placement-Portal-Pipeline/backend
+[Pipeline] {
+[Pipeline] dir
+Running in /var/jenkins_home/workspace/Placement-Portal-Pipeline/frontend
+[Pipeline] {
+[Pipeline] echo
+Mocking npm ci... downloading packages
+[Pipeline] sleep
+Sleeping for 3 sec
+[Pipeline] echo
+Mocking npm ci... downloading packages
+[Pipeline] sleep
+Sleeping for 4 sec

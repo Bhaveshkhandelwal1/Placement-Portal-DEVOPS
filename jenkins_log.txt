@@ -1,0 +1,253 @@
+Started by user unknown or anonymous
+Obtained Jenkinsfile from git https://github.com/Bhaveshkhandelwal1/Placement-Portal-DEVOPS.git
+[Pipeline] Start of Pipeline
+[Pipeline] node
+Running on Jenkins in /var/jenkins_home/workspace/Placement-Portal-Pipeline
+[Pipeline] {
+[Pipeline] stage
+[Pipeline] { (Declarative: Checkout SCM)
+[Pipeline] checkout
+The recommended git tool is: git
+No credentials specified
+Cloning the remote Git repository
+Cloning repository https://github.com/Bhaveshkhandelwal1/Placement-Portal-DEVOPS.git
+ > git init /var/jenkins_home/workspace/Placement-Portal-Pipeline # timeout=10
+Fetching upstream changes from https://github.com/Bhaveshkhandelwal1/Placement-Portal-DEVOPS.git
+ > git --version # timeout=10
+ > git --version # 'git version 2.47.3'
+ > git fetch --tags --force --progress -- https://github.com/Bhaveshkhandelwal1/Placement-Portal-DEVOPS.git +refs/heads/*:refs/remotes/origin/* # timeout=10
+ > git config remote.origin.url https://github.com/Bhaveshkhandelwal1/Placement-Portal-DEVOPS.git # timeout=10
+ > git config --add remote.origin.fetch +refs/heads/*:refs/remotes/origin/* # timeout=10
+Avoid second fetch
+ > git rev-parse refs/remotes/origin/main^{commit} # timeout=10
+Checking out Revision 49996ce505866cd38d7b1947e5f3b2d09feda403 (refs/remotes/origin/main)
+ > git config core.sparsecheckout # timeout=10
+ > git checkout -f 49996ce505866cd38d7b1947e5f3b2d09feda403 # timeout=10
+Commit message: "Initial commit"
+ > git rev-list --no-walk 49996ce505866cd38d7b1947e5f3b2d09feda403 # timeout=10
+[Pipeline] }
+[Pipeline] // stage
+[Pipeline] withEnv
+[Pipeline] {
+[Pipeline] withEnv
+[Pipeline] {
+[Pipeline] stage
+[Pipeline] { (Checkout)
+[Pipeline] checkout
+The recommended git tool is: git
+No credentials specified
+ > git rev-parse --resolve-git-dir /var/jenkins_home/workspace/Placement-Portal-Pipeline/.git # timeout=10
+Fetching changes from the remote Git repository
+ > git config remote.origin.url https://github.com/Bhaveshkhandelwal1/Placement-Portal-DEVOPS.git # timeout=10
+Fetching upstream changes from https://github.com/Bhaveshkhandelwal1/Placement-Portal-DEVOPS.git
+ > git --version # timeout=10
+ > git --version # 'git version 2.47.3'
+ > git fetch --tags --force --progress -- https://github.com/Bhaveshkhandelwal1/Placement-Portal-DEVOPS.git +refs/heads/*:refs/remotes/origin/* # timeout=10
+ > git rev-parse refs/remotes/origin/main^{commit} # timeout=10
+Checking out Revision 49996ce505866cd38d7b1947e5f3b2d09feda403 (refs/remotes/origin/main)
+ > git config core.sparsecheckout # timeout=10
+ > git checkout -f 49996ce505866cd38d7b1947e5f3b2d09feda403 # timeout=10
+Commit message: "Initial commit"
+[Pipeline] script
+[Pipeline] {
+[Pipeline] sh
++ git rev-parse --short HEAD
+[Pipeline] }
+[Pipeline] // script
+[Pipeline] }
+[Pipeline] // stage
+[Pipeline] stage
+[Pipeline] { (Setup AWS Environment)
+[Pipeline] script
+[Pipeline] {
+[Pipeline] sh
++ aws ec2 describe-instances --filters Name=tag:Name,Values=placement-portal-backend Name=instance-state-name,Values=running --query Reservations[0].Instances[0].InstanceId --output text --region us-east-1
+
+aws: [ERROR]: An error occurred (NoCredentials): Unable to locate credentials. You can configure credentials by running "aws login".
+[Pipeline] }
+[Pipeline] // script
+[Pipeline] }
+[Pipeline] // stage
+[Pipeline] stage
+[Pipeline] { (Install Dependencies)
+Stage "Install Dependencies" skipped due to earlier failure(s)
+[Pipeline] getContext
+[Pipeline] parallel
+[Pipeline] { (Branch: Backend Dependencies)
+[Pipeline] { (Branch: Frontend Dependencies)
+[Pipeline] stage
+[Pipeline] { (Backend Dependencies)
+[Pipeline] stage
+[Pipeline] { (Frontend Dependencies)
+Stage "Backend Dependencies" skipped due to earlier failure(s)
+[Pipeline] getContext
+[Pipeline] }
+Stage "Frontend Dependencies" skipped due to earlier failure(s)
+[Pipeline] getContext
+[Pipeline] }
+[Pipeline] // stage
+[Pipeline] // stage
+[Pipeline] }
+Failed in branch Backend Dependencies
+[Pipeline] }
+Failed in branch Frontend Dependencies
+[Pipeline] // parallel
+[Pipeline] }
+[Pipeline] // stage
+[Pipeline] stage
+[Pipeline] { (Code Quality & Security)
+Stage "Code Quality & Security" skipped due to earlier failure(s)
+[Pipeline] getContext
+[Pipeline] parallel
+[Pipeline] { (Branch: Backend Lint & Test)
+[Pipeline] { (Branch: Frontend Lint & Test)
+[Pipeline] { (Branch: SonarQube Analysis)
+[Pipeline] { (Branch: Security Scan)
+[Pipeline] stage
+[Pipeline] { (Backend Lint & Test)
+[Pipeline] stage
+[Pipeline] { (Frontend Lint & Test)
+[Pipeline] stage
+[Pipeline] { (SonarQube Analysis)
+[Pipeline] stage
+[Pipeline] { (Security Scan)
+Stage "Backend Lint & Test" skipped due to earlier failure(s)
+[Pipeline] getContext
+[Pipeline] }
+Stage "Frontend Lint & Test" skipped due to earlier failure(s)
+[Pipeline] getContext
+[Pipeline] }
+Stage "SonarQube Analysis" skipped due to earlier failure(s)
+[Pipeline] getContext
+[Pipeline] }
+Stage "Security Scan" skipped due to earlier failure(s)
+[Pipeline] getContext
+[Pipeline] }
+[Pipeline] // stage
+[Pipeline] // stage
+[Pipeline] // stage
+[Pipeline] // stage
+[Pipeline] }
+Failed in branch Backend Lint & Test
+[Pipeline] }
+Failed in branch Frontend Lint & Test
+[Pipeline] }
+Failed in branch SonarQube Analysis
+[Pipeline] }
+Failed in branch Security Scan
+[Pipeline] // parallel
+[Pipeline] }
+[Pipeline] // stage
+[Pipeline] stage
+[Pipeline] { (Quality Gate)
+Stage "Quality Gate" skipped due to earlier failure(s)
+[Pipeline] getContext
+[Pipeline] }
+[Pipeline] // stage
+[Pipeline] stage
+[Pipeline] { (Build Docker Images)
+Stage "Build Docker Images" skipped due to earlier failure(s)
+[Pipeline] getContext
+[Pipeline] }
+[Pipeline] // stage
+[Pipeline] stage
+[Pipeline] { (Push Docker Images)
+Stage "Push Docker Images" skipped due to earlier failure(s)
+[Pipeline] getContext
+[Pipeline] parallel
+[Pipeline] { (Branch: Push Backend)
+[Pipeline] { (Branch: Push Frontend)
+[Pipeline] stage
+[Pipeline] { (Push Backend)
+[Pipeline] stage
+[Pipeline] { (Push Frontend)
+Stage "Push Backend" skipped due to earlier failure(s)
+[Pipeline] getContext
+[Pipeline] }
+Stage "Push Frontend" skipped due to earlier failure(s)
+[Pipeline] getContext
+[Pipeline] }
+[Pipeline] // stage
+[Pipeline] // stage
+[Pipeline] }
+Failed in branch Push Backend
+[Pipeline] }
+Failed in branch Push Frontend
+[Pipeline] // parallel
+[Pipeline] }
+[Pipeline] // stage
+[Pipeline] stage
+[Pipeline] { (Security Scanning)
+Stage "Security Scanning" skipped due to earlier failure(s)
+[Pipeline] getContext
+[Pipeline] parallel
+[Pipeline] { (Branch: Backend Image Scan)
+[Pipeline] { (Branch: Frontend Image Scan)
+[Pipeline] stage
+[Pipeline] { (Backend Image Scan)
+[Pipeline] stage
+[Pipeline] { (Frontend Image Scan)
+Stage "Backend Image Scan" skipped due to earlier failure(s)
+[Pipeline] getContext
+[Pipeline] }
+Stage "Frontend Image Scan" skipped due to earlier failure(s)
+[Pipeline] getContext
+[Pipeline] }
+[Pipeline] // stage
+[Pipeline] // stage
+[Pipeline] }
+Failed in branch Backend Image Scan
+[Pipeline] }
+Failed in branch Frontend Image Scan
+[Pipeline] // parallel
+[Pipeline] }
+[Pipeline] // stage
+[Pipeline] stage
+[Pipeline] { (Deploy to Staging)
+Stage "Deploy to Staging" skipped due to earlier failure(s)
+[Pipeline] getContext
+[Pipeline] }
+[Pipeline] // stage
+[Pipeline] stage
+[Pipeline] { (Integration Tests)
+Stage "Integration Tests" skipped due to earlier failure(s)
+[Pipeline] getContext
+[Pipeline] }
+[Pipeline] // stage
+[Pipeline] stage
+[Pipeline] { (Deploy to Production)
+Stage "Deploy to Production" skipped due to earlier failure(s)
+[Pipeline] getContext
+[Pipeline] }
+[Pipeline] // stage
+[Pipeline] stage
+[Pipeline] { (Post-deployment Tests)
+Stage "Post-deployment Tests" skipped due to earlier failure(s)
+[Pipeline] getContext
+[Pipeline] }
+[Pipeline] // stage
+[Pipeline] stage
+[Pipeline] { (Declarative: Post Actions)
+[Pipeline] script
+[Pipeline] {
+[Pipeline] echo
+Pipeline completed
+[Pipeline] cleanWs
+[WS-CLEANUP] Deleting project workspace...
+[WS-CLEANUP] Deferred wipeout is used...
+[WS-CLEANUP] done
+[Pipeline] }
+[Pipeline] // script
+[Pipeline] echo
+❌ Deployment failed! Pipeline: Placement-Portal-Pipeline - Build: 9
+[Pipeline] }
+[Pipeline] // stage
+[Pipeline] }
+[Pipeline] // withEnv
+[Pipeline] }
+[Pipeline] // withEnv
+[Pipeline] }
+[Pipeline] // node
+[Pipeline] End of Pipeline
+ERROR: script returned exit code 253
+Finished: FAILURE

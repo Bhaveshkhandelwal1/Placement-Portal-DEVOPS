@@ -76,16 +76,6 @@ output "jenkins_url" {
   value       = "http://${aws_eip.jenkins.public_ip}:8080"
 }
 
-# SonarQube Instance Output
-output "sonarqube_public_ip" {
-  description = "SonarQube server public IP"
-  value       = aws_eip.sonarqube.public_ip
-}
-
-output "sonarqube_url" {
-  description = "SonarQube server URL"
-  value       = "http://${aws_eip.sonarqube.public_ip}:9000"
-}
 
 # VPC Outputs
 output "vpc_id" {
@@ -93,10 +83,6 @@ output "vpc_id" {
   value       = aws_vpc.main.id
 }
 
-output "private_subnet_ids" {
-  description = "Private subnet IDs"
-  value       = aws_subnet.private[*].id
-}
 
 output "public_subnet_ids" {
   description = "Public subnet IDs"
