@@ -7,7 +7,7 @@ pipeline {
         ECR_REGISTRY      = "${AWS_ACCOUNT_ID}.dkr.ecr.${AWS_REGION}.amazonaws.com"
         IMAGE_BACKEND     = "${ECR_REGISTRY}/placement-portal-backend"
         IMAGE_FRONTEND    = "${ECR_REGISTRY}/placement-portal-frontend"
-        SONAR_HOST_URL    = 'http://localhost:9000'
+        SONAR_HOST_URL    = 'http://32.195.141.188:9000'
         SONAR_PROJECT_KEY = 'placement-portal'
     }
 
@@ -78,7 +78,7 @@ pipeline {
                       -Dsonar.projectKey=${SONAR_PROJECT_KEY} \
                       -Dsonar.projectName="Placement Portal" \
                       -Dsonar.sources=backend/src,frontend/src \
-                      -Dsonar.host.url=http://host.docker.internal:9000 \
+                      -Dsonar.host.url=${SONAR_HOST_URL} \
                       -Dsonar.token=squ_5586c882dfe62d759d61769e9132d4834e9a8d32 \
                       -Dsonar.exclusions="**/node_modules/**,**/dist/**,**/build/**" \
                       -Dsonar.scm.disabled=true
