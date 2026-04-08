@@ -196,7 +196,7 @@ pipeline {
                               --parameters 'commands=[
                                 "aws ecr get-login-password --region ${AWS_REGION} | docker login --username AWS --password-stdin ${ECR_REGISTRY}",
                                 "docker pull ${IMAGE_BACKEND}:${env.GIT_COMMIT_SHORT}",
-                                "docker rm -f \\$(docker ps -aq) 2>/dev/null || true",
+                                "docker rm -f \$(docker ps -aq) 2>/dev/null || true",
                                 "docker run -d --name placement-backend --restart unless-stopped -p 5000:5000 -e PORT=5000 -e NODE_ENV=production -e MONGODB_URI=\\"mongodb://${mongoIp}:27017/placement_db\\" -e JWT_SECRET=\\"super-secure-jwt-secret-change-in-prod\\" ${IMAGE_BACKEND}:${env.GIT_COMMIT_SHORT}"
                               ]' \
                               --region ${AWS_REGION} \
@@ -217,7 +217,7 @@ pipeline {
                               --parameters 'commands=[
                                 "aws ecr get-login-password --region ${AWS_REGION} | docker login --username AWS --password-stdin ${ECR_REGISTRY}",
                                 "docker pull ${IMAGE_FRONTEND}:${env.GIT_COMMIT_SHORT}",
-                                "docker rm -f \\$(docker ps -aq) 2>/dev/null || true",
+                                "docker rm -f \$(docker ps -aq) 2>/dev/null || true",
                                 "docker run -d --name placement-frontend --restart unless-stopped -p 80:8080 ${IMAGE_FRONTEND}:${env.GIT_COMMIT_SHORT}"
                               ]' \
                               --region ${AWS_REGION} \
