@@ -27,42 +27,36 @@ pipeline {
             }
         }
 
-        // ── Stage 2: Build & Test (Parallel) ──────────────────────────────
-        stage('Build & Test') {
-            parallel {
-
-                stage('Backend') {
-                    steps {
-                        dir('backend') {
-                            echo "🔨 Installing & building backend..."
-                            sh '''
-                                docker run --rm \
-                                  -v "$(pwd)":/app \
-                                  -w /app \
-                                  node:18-alpine \
-                                  sh -c "npm install --ignore-scripts && npm run build 2>/dev/null || true && npm test 2>/dev/null || true"
-                            '''
-                            echo "✅ Backend build & test passed"
-                        }
-                    }
+        // ── Stage 2: Build & Test (Sequential) ──────────────────────────────
+        stage('Build Backend') {
+            steps {
+                dir('backend') {
+                    echo "🔨 Installing & building backend..."
+                    sh '''
+                        docker run --rm \
+                          -v "$(pwd)":/app \
+                          -w /app \
+                          node:18-alpine \
+                          sh -c "npm install --ignore-scripts && npm run build 2>/dev/null || true && npm test 2>/dev/null || true"
+                    '''
+                    echo "✅ Backend build & test passed"
                 }
+            }
+        }
 
-                stage('Frontend') {
-                    steps {
-                        dir('frontend') {
-                            echo "🔨 Installing & building frontend..."
-                            sh '''
-                                docker run --rm \
-                                  -v "$(pwd)":/app \
-                                  -w /app \
-                                  node:18-alpine \
-                                  sh -c "npm install && npm run build"
-                            '''
-                            echo "✅ Frontend build passed"
-                        }
-                    }
+        stage('Build Frontend') {
+            steps {
+                dir('frontend') {
+                    echo "🔨 Installing & building frontend..."
+                    sh '''
+                        docker run --rm \
+                          -v "$(pwd)":/app \
+                          -w /app \
+                          node:18-alpine \
+                          sh -c "npm install && npm run build"
+                    '''
+                    echo "✅ Frontend build passed"
                 }
-
             }
         }
 
@@ -99,42 +93,36 @@ pipeline {
             }
         }
 
-        // ── Stage 5: Docker Build & Push to ECR (Parallel) ────────────────
-        stage('Docker Build & Push to ECR') {
-            parallel {
+        // ── Stage 5: Docker Build & Push to ECR (Sequential) ────────────────
+        stage('Docker Build Backend Image') {
+            steps {
+                echo "🐳 Building & pushing backend image to ECR..."
+                sh """
+                    docker build \
+                        -t ${IMAGE_BACKEND}:${env.GIT_COMMIT_SHORT} \
+                        -t ${IMAGE_BACKEND}:latest \
+                        ./backend
 
-                stage('Backend Image') {
-                    steps {
-                        echo "🐳 Building & pushing backend image to ECR..."
-                        sh """
-                            docker build \
-                                -t ${IMAGE_BACKEND}:${env.GIT_COMMIT_SHORT} \
-                                -t ${IMAGE_BACKEND}:latest \
-                                ./backend
+                    docker push ${IMAGE_BACKEND}:${env.GIT_COMMIT_SHORT}
+                    docker push ${IMAGE_BACKEND}:latest
+                """
+                echo "✅ Backend image pushed: ${IMAGE_BACKEND}:${env.GIT_COMMIT_SHORT}"
+            }
+        }
 
-                            docker push ${IMAGE_BACKEND}:${env.GIT_COMMIT_SHORT}
-                            docker push ${IMAGE_BACKEND}:latest
-                        """
-                        echo "✅ Backend image pushed: ${IMAGE_BACKEND}:${env.GIT_COMMIT_SHORT}"
-                    }
-                }
+        stage('Docker Build Frontend Image') {
+            steps {
+                echo "🐳 Building & pushing frontend image to ECR..."
+                sh """
+                    docker build \
+                        -t ${IMAGE_FRONTEND}:${env.GIT_COMMIT_SHORT} \
+                        -t ${IMAGE_FRONTEND}:latest \
+                        ./frontend
 
-                stage('Frontend Image') {
-                    steps {
-                        echo "🐳 Building & pushing frontend image to ECR..."
-                        sh """
-                            docker build \
-                                -t ${IMAGE_FRONTEND}:${env.GIT_COMMIT_SHORT} \
-                                -t ${IMAGE_FRONTEND}:latest \
-                                ./frontend
-
-                            docker push ${IMAGE_FRONTEND}:${env.GIT_COMMIT_SHORT}
-                            docker push ${IMAGE_FRONTEND}:latest
-                        """
-                        echo "✅ Frontend image pushed: ${IMAGE_FRONTEND}:${env.GIT_COMMIT_SHORT}"
-                    }
-                }
-
+                    docker push ${IMAGE_FRONTEND}:${env.GIT_COMMIT_SHORT}
+                    docker push ${IMAGE_FRONTEND}:latest
+                """
+                echo "✅ Frontend image pushed: ${IMAGE_FRONTEND}:${env.GIT_COMMIT_SHORT}"
             }
         }
 
