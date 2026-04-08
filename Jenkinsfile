@@ -29,9 +29,27 @@ pipeline {
             }
         }
 
-
-
-
+        // ── Stage 3: SonarQube Analysis ───────────────────────────────────
+        stage('SonarQube Analysis') {
+            steps {
+                echo "🔍 Running SonarQube code analysis..."
+                sh """
+                    docker run --rm \
+                      -v "\$(pwd)":/usr/src \
+                      --add-host=host.docker.internal:host-gateway \
+                      -e SONAR_SCANNER_OPTS="-Xmx512m" \
+                      sonarsource/sonar-scanner-cli \
+                      -Dsonar.projectKey=${SONAR_PROJECT_KEY} \
+                      -Dsonar.projectName="Placement Portal" \
+                      -Dsonar.sources=backend/src,frontend/src \
+                      -Dsonar.host.url=${SONAR_HOST_URL} \
+                      -Dsonar.login=sqa_88ae3b6e1b6d0bf1f66a5b4ee9f6a55a073b45cd \
+                      -Dsonar.exclusions="**/node_modules/**,**/dist/**,**/build/**" \
+                      -Dsonar.scm.disabled=true
+                """
+                echo "✅ SonarQube scan completed"
+            }
+        }
 
         // ── Stage 4: ECR Login ─────────────────────────────────────────────
         stage('ECR Login') {
