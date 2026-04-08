@@ -198,7 +198,7 @@ pipeline {
                                 "docker pull ${IMAGE_BACKEND}:${env.GIT_COMMIT_SHORT}",
                                 "docker stop placement-backend 2>/dev/null || true",
                                 "docker rm   placement-backend 2>/dev/null || true",
-                                "docker run -d --name placement-backend --restart unless-stopped -p 5000:5000 -e PORT=5000 -e NODE_ENV=production -e MONGODB_URI=\\"mongodb://placement:admin123@${mongoIp}:27017/placement_db?authSource=admin\\" -e JWT_SECRET=\\"super-secure-jwt-secret-change-in-prod\\" ${IMAGE_BACKEND}:${env.GIT_COMMIT_SHORT}"
+                                "docker run -d --name placement-backend --restart unless-stopped -p 5000:5000 -e PORT=5000 -e NODE_ENV=production -e MONGODB_URI=\\"mongodb://${mongoIp}:27017/placement_db\\" -e JWT_SECRET=\\"super-secure-jwt-secret-change-in-prod\\" ${IMAGE_BACKEND}:${env.GIT_COMMIT_SHORT}"
                               ]' \
                               --region ${AWS_REGION} \
                               --query 'Command.CommandId' \
