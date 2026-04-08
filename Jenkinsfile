@@ -2,7 +2,7 @@ pipeline {
     agent any
 
     environment {
-        LOCAL_REGISTRY    = 'localhost:5001'
+        LOCAL_REGISTRY    = 'host.docker.internal:5001'
         IMAGE_BACKEND     = "${LOCAL_REGISTRY}/placement-portal-backend"
         IMAGE_FRONTEND    = "${LOCAL_REGISTRY}/placement-portal-frontend"
         SONAR_HOST_URL    = 'http://host.docker.internal:9000'
@@ -93,13 +93,14 @@ pipeline {
                     steps {
                         echo "🐳 Building & pushing backend image..."
                         sh """
-                            docker build -t ${IMAGE_BACKEND}:${env.GIT_COMMIT_SHORT} \
-                                         -t ${IMAGE_BACKEND}:latest \
-                                         ./backend
+                            docker build \
+                                -t ${IMAGE_BACKEND}:${env.GIT_COMMIT_SHORT} \
+                                -t ${IMAGE_BACKEND}:latest \
+                                ./backend
                             docker push ${IMAGE_BACKEND}:${env.GIT_COMMIT_SHORT}
                             docker push ${IMAGE_BACKEND}:latest
                         """
-                        echo "✅ Backend image pushed: ${IMAGE_BACKEND}:${env.GIT_COMMIT_SHORT}"
+                        echo "Backend image pushed: ${IMAGE_BACKEND}:${env.GIT_COMMIT_SHORT}"
                     }
                 }
 
@@ -107,13 +108,14 @@ pipeline {
                     steps {
                         echo "🐳 Building & pushing frontend image..."
                         sh """
-                            docker build -t ${IMAGE_FRONTEND}:${env.GIT_COMMIT_SHORT} \
-                                         -t ${IMAGE_FRONTEND}:latest \
-                                         ./frontend
+                            docker build \
+                                -t ${IMAGE_FRONTEND}:${env.GIT_COMMIT_SHORT} \
+                                -t ${IMAGE_FRONTEND}:latest \
+                                ./frontend
                             docker push ${IMAGE_FRONTEND}:${env.GIT_COMMIT_SHORT}
                             docker push ${IMAGE_FRONTEND}:latest
                         """
-                        echo "✅ Frontend image pushed: ${IMAGE_FRONTEND}:${env.GIT_COMMIT_SHORT}"
+                        echo "Frontend image pushed: ${IMAGE_FRONTEND}:${env.GIT_COMMIT_SHORT}"
                     }
                 }
 
@@ -123,12 +125,11 @@ pipeline {
         // ── Stage 4: Deploy ───────────────────────────────────────────────
         stage('Deploy to Local') {
             steps {
-                echo "🚀 Deploying updated application stack..."
+                echo "Deploying updated application stack..."
                 sh '''
-                    docker compose -f docker-compose.yml \
-                        up -d --build --remove-orphans
+                    docker compose -f docker-compose.yml up -d --remove-orphans
                 '''
-                echo "✅ Deployment complete. App running at http://localhost"
+                echo "Deployment complete. App running at http://localhost"
             }
         }
 
