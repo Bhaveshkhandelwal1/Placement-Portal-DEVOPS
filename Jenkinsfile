@@ -2,6 +2,7 @@ pipeline {
     agent any
 
     environment {
+        PATH              = "/usr/local/bin:${env.PATH}"
         AWS_REGION        = 'us-east-1'
         AWS_ACCOUNT_ID    = '505017489008'
         ECR_REGISTRY      = "${AWS_ACCOUNT_ID}.dkr.ecr.${AWS_REGION}.amazonaws.com"
