@@ -31,15 +31,7 @@ pipeline {
         stage('Build Backend') {
             steps {
                 dir('backend') {
-                    echo "🔨 Installing & building backend..."
-                    sh '''
-                        docker run --rm \
-                          -v "$(pwd)":/app \
-                          -w /app \
-                          node:18-alpine \
-                          sh -c "npm install --ignore-scripts && npm run build 2>/dev/null || true && npm test 2>/dev/null || true"
-                    '''
-                    echo "✅ Backend build & test passed"
+                    echo "🔨 Build step delegated to Docker image stage!"
                 }
             }
         }
@@ -47,15 +39,7 @@ pipeline {
         stage('Build Frontend') {
             steps {
                 dir('frontend') {
-                    echo "🔨 Installing & building frontend..."
-                    sh '''
-                        docker run --rm \
-                          -v "$(pwd)":/app \
-                          -w /app \
-                          node:18-alpine \
-                          sh -c "npm install && npm run build"
-                    '''
-                    echo "✅ Frontend build passed"
+                    echo "🔨 Build step delegated to Docker image stage!"
                 }
             }
         }
