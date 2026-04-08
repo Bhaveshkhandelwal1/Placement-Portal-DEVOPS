@@ -9,6 +9,7 @@ pipeline {
         IMAGE_FRONTEND    = "${ECR_REGISTRY}/placement-portal-frontend"
         SONAR_HOST_URL    = 'http://32.195.141.188:9000'
         SONAR_PROJECT_KEY = 'placement-portal'
+        DOCKER_BUILDKIT   = '1'
     }
 
     stages {
@@ -27,22 +28,7 @@ pipeline {
             }
         }
 
-        // ── Stage 2: Build & Test (Sequential) ──────────────────────────────
-        stage('Build Backend') {
-            steps {
-                dir('backend') {
-                    echo "🔨 Build step delegated to Docker image stage!"
-                }
-            }
-        }
 
-        stage('Build Frontend') {
-            steps {
-                dir('frontend') {
-                    echo "🔨 Build step delegated to Docker image stage!"
-                }
-            }
-        }
 
         // ── Stage 3: SonarQube Analysis ───────────────────────────────────
         stage('SonarQube Analysis') {
@@ -52,6 +38,7 @@ pipeline {
                     docker run --rm \
                       -v "\$(pwd)":/usr/src \
                       --add-host=host.docker.internal:host-gateway \
+                      -e SONAR_SCANNER_OPTS="-Xmx512m" \
                       sonarsource/sonar-scanner-cli \
                       -Dsonar.projectKey=${SONAR_PROJECT_KEY} \
                       -Dsonar.projectName="Placement Portal" \
@@ -237,8 +224,9 @@ pipeline {
 
     post {
         always {
-            echo "🧹 Pipeline finished. Cleaning up workspace..."
+            echo "🧹 Pipeline finished. Cleaning up workspace and unused docker images..."
             sh "docker logout ${ECR_REGISTRY} 2>/dev/null || true"
+            sh "docker system prune -af --filter 'until=24h' 2>/dev/null || true"
             cleanWs()
         }
         success {
