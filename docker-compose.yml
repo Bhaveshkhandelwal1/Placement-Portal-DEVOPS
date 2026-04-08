@@ -23,7 +23,8 @@ services:
 
   # ─── Backend (Node.js / Express / TypeScript) ────────────────────────────────
   backend:
-    build:
+    image: 505017489008.dkr.ecr.us-east-1.amazonaws.com/placement-portal-backend:latest
+    build:                  # fallback for local `docker compose build`
       context: ./backend
       dockerfile: Dockerfile
     container_name: placement-backend
@@ -48,7 +49,8 @@ services:
 
   # ─── Frontend (React + Nginx) ────────────────────────────────────────────────
   frontend:
-    build:
+    image: 505017489008.dkr.ecr.us-east-1.amazonaws.com/placement-portal-frontend:latest
+    build:                  # fallback for local `docker compose build`
       context: ./frontend
       dockerfile: Dockerfile
     container_name: placement-frontend
