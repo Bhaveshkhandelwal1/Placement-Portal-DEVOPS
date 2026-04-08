@@ -39,7 +39,7 @@ pipeline {
                                   -v "$(pwd)":/app \
                                   -w /app \
                                   node:18-alpine \
-                                  sh -c "npm ci --ignore-scripts && npm run build && npm test"
+                                  sh -c "npm install --ignore-scripts && npm run build && npm test"
                             '''
                             echo "✅ Backend build & test passed"
                         }
@@ -55,7 +55,7 @@ pipeline {
                                   -v "$(pwd)":/app \
                                   -w /app \
                                   node:18-alpine \
-                                  sh -c "npm ci && npm run build"
+                                  sh -c "npm install && npm run build"
                             '''
                             echo "✅ Frontend build passed"
                         }
