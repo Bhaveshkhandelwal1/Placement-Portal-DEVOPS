@@ -61,9 +61,51 @@ services:
     networks:
       - placement-net
 
+  # ─── SonarQube (Code Quality & Security Scanning) ───────────────────────────
+  sonarqube:
+    image: sonarqube:community
+    container_name: placement-sonarqube
+    restart: unless-stopped
+    ports:
+      - "9000:9000"
+    environment:
+      SONAR_ES_BOOTSTRAP_CHECKS_DISABLE: "true"
+    volumes:
+      - sonarqube_data:/opt/sonarqube/data
+      - sonarqube_logs:/opt/sonarqube/logs
+      - sonarqube_extensions:/opt/sonarqube/extensions
+    networks:
+      - placement-net
+    healthcheck:
+      test: [ "CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:9000/api/system/status" ]
+      interval: 30s
+      timeout: 10s
+      retries: 10
+      start_period: 120s
+
+  # ─── Local Docker Registry (replaces AWS ECR) ───────────────────────────────
+  registry:
+    image: registry:2
+    container_name: placement-registry
+    restart: unless-stopped
+    ports:
+      - "5001:5000"
+    volumes:
+      - registry_data:/var/lib/registry
+    networks:
+      - placement-net
+
 # ─── Volumes & Networks ──────────────────────────────────────────────────────
 volumes:
   mongo_data:
+    driver: local
+  sonarqube_data:
+    driver: local
+  sonarqube_logs:
+    driver: local
+  sonarqube_extensions:
+    driver: local
+  registry_data:
     driver: local
 
 networks:

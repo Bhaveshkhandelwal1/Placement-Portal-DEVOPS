@@ -1,95 +1,149 @@
 pipeline {
     agent any
-    
+
     environment {
-        AWS_ACCOUNT_ID = '011528267161'
-        AWS_REGION = 'us-east-1'
-        ECR_REGISTRY = "${AWS_ACCOUNT_ID}.dkr.ecr.${AWS_REGION}.amazonaws.com"
-        IMAGE_BACKEND = "${ECR_REGISTRY}/placement-portal-backend"
-        IMAGE_FRONTEND = "${ECR_REGISTRY}/placement-portal-frontend"
-        SONAR_HOST_URL = 'http://3.91.165.95:9000'
-        PATH = "${env.PATH}:/usr/local/bin"
-        AWS_DEFAULT_REGION = "${AWS_REGION}"
+        LOCAL_REGISTRY    = 'localhost:5001'
+        IMAGE_BACKEND     = "${LOCAL_REGISTRY}/placement-portal-backend"
+        IMAGE_FRONTEND    = "${LOCAL_REGISTRY}/placement-portal-frontend"
+        SONAR_HOST_URL    = 'http://host.docker.internal:9000'
+        SONAR_PROJECT_KEY = 'placement-portal'
+        COMPOSE_FILE      = '/var/jenkins_home/workspace/Placement-Portal-Pipeline/docker-compose.yml'
     }
-    
+
     stages {
+
+        // ── Stage 1: Checkout ──────────────────────────────────────────────
         stage('Checkout & Setup') {
             steps {
                 git branch: 'main', url: 'https://github.com/Bhaveshkhandelwal1/Placement-Portal-DEVOPS.git'
                 script {
-                    env.GIT_COMMIT_SHORT = sh(script: "git rev-parse --short HEAD", returnStdout: true).trim()
-                    env.BACKEND_INSTANCE_ID = "i-098abc123def456"
-                    env.FRONTEND_INSTANCE_ID = "i-123xyz987abc654"
-                    echo "Setup AWS Account: ${AWS_ACCOUNT_ID}"
+                    env.GIT_COMMIT_SHORT = sh(
+                        script: "git rev-parse --short HEAD",
+                        returnStdout: true
+                    ).trim()
+                    echo "✅ Checked out commit: ${env.GIT_COMMIT_SHORT}"
                 }
             }
         }
-        
+
+        // ── Stage 2: Build & Test (Parallel) ──────────────────────────────
         stage('Build & Test') {
             parallel {
+
                 stage('Backend') {
                     steps {
                         dir('backend') {
-                            echo "Mocking build, lint, and tests..."
-                            sleep 2
+                            echo "🔨 Installing & building backend..."
+                            sh '''
+                                docker run --rm \
+                                  -v "$(pwd)":/app \
+                                  -w /app \
+                                  node:18-alpine \
+                                  sh -c "npm ci --ignore-scripts && npm run build && npm test"
+                            '''
+                            echo "✅ Backend build & test passed"
                         }
                     }
                 }
+
                 stage('Frontend') {
                     steps {
                         dir('frontend') {
-                            echo "Mocking build, lint, and tests..."
-                            sleep 2
+                            echo "🔨 Installing & building frontend..."
+                            sh '''
+                                docker run --rm \
+                                  -v "$(pwd)":/app \
+                                  -w /app \
+                                  node:18-alpine \
+                                  sh -c "npm ci && npm run build"
+                            '''
+                            echo "✅ Frontend build passed"
                         }
                     }
                 }
-                stage('Security') {
+
+                stage('Security - SonarQube') {
                     steps {
-                        echo "Simulating SonarQube & Security Scans... 0 Vulnerabilities."
-                        sleep 2
+                        echo "🔍 Running SonarQube code analysis..."
+                        sh '''
+                            docker run --rm \
+                              -v "$(pwd)":/usr/src \
+                              --add-host=host.docker.internal:host-gateway \
+                              sonarsource/sonar-scanner-cli \
+                              -Dsonar.projectKey=placement-portal \
+                              -Dsonar.projectName="Placement Portal" \
+                              -Dsonar.sources=backend/src,frontend/src \
+                              -Dsonar.host.url=http://host.docker.internal:9000 \
+                              -Dsonar.token=squ_5586c882dfe62d759d61769e9132d4834e9a8d32 \
+                              -Dsonar.exclusions="**/node_modules/**,**/dist/**,**/build/**" \
+                              -Dsonar.scm.disabled=true
+                        '''
+                        echo "✅ SonarQube scan completed"
                     }
                 }
+
             }
         }
-        
+
+        // ── Stage 3: Docker Build & Push (Parallel) ───────────────────────
         stage('Docker Build & Push') {
             parallel {
+
                 stage('Backend Image') {
                     steps {
-                        echo "Building & Pushing Backend: ${IMAGE_BACKEND}:${env.GIT_COMMIT_SHORT}..."
-                        sleep 3
+                        echo "🐳 Building & pushing backend image..."
+                        sh """
+                            docker build -t ${IMAGE_BACKEND}:${env.GIT_COMMIT_SHORT} \
+                                         -t ${IMAGE_BACKEND}:latest \
+                                         ./backend
+                            docker push ${IMAGE_BACKEND}:${env.GIT_COMMIT_SHORT}
+                            docker push ${IMAGE_BACKEND}:latest
+                        """
+                        echo "✅ Backend image pushed: ${IMAGE_BACKEND}:${env.GIT_COMMIT_SHORT}"
                     }
                 }
+
                 stage('Frontend Image') {
                     steps {
-                        echo "Building & Pushing Frontend: ${IMAGE_FRONTEND}:${env.GIT_COMMIT_SHORT}..."
-                        sleep 3
+                        echo "🐳 Building & pushing frontend image..."
+                        sh """
+                            docker build -t ${IMAGE_FRONTEND}:${env.GIT_COMMIT_SHORT} \
+                                         -t ${IMAGE_FRONTEND}:latest \
+                                         ./frontend
+                            docker push ${IMAGE_FRONTEND}:${env.GIT_COMMIT_SHORT}
+                            docker push ${IMAGE_FRONTEND}:latest
+                        """
+                        echo "✅ Frontend image pushed: ${IMAGE_FRONTEND}:${env.GIT_COMMIT_SHORT}"
                     }
                 }
+
             }
         }
-        
-        stage('Deploy to Production') {
+
+        // ── Stage 4: Deploy ───────────────────────────────────────────────
+        stage('Deploy to Local') {
             steps {
-                script {
-                    echo "Deploying to backend (${env.BACKEND_INSTANCE_ID}) & frontend (${env.FRONTEND_INSTANCE_ID})..."
-                    sleep 4
-                    echo "Deployment completed. App URL: http://placement-portal-alb-1234567.us-east-1.elb.amazonaws.com"
-                }
+                echo "🚀 Deploying updated application stack..."
+                sh '''
+                    docker compose -f docker-compose.yml \
+                        up -d --build --remove-orphans
+                '''
+                echo "✅ Deployment complete. App running at http://localhost"
             }
         }
+
     }
-    
+
     post {
         always {
-            echo "Pipeline completed! Cleaning workspace..."
-            sleep 1
+            echo "🧹 Pipeline finished. Cleaning up workspace..."
+            cleanWs()
         }
         success {
-            echo "✅ Deployment successful! Build: ${env.BUILD_NUMBER}"
+            echo "🎉 Build #${env.BUILD_NUMBER} SUCCEEDED! Commit: ${env.GIT_COMMIT_SHORT}"
         }
         failure {
-            echo "❌ Deployment failed! Build: ${env.BUILD_NUMBER}"
+            echo "❌ Build #${env.BUILD_NUMBER} FAILED! Check the logs above."
         }
     }
 }
