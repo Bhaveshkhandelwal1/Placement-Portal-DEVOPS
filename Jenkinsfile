@@ -44,7 +44,7 @@ pipeline {
                       -Dsonar.projectName="Placement Portal" \
                       -Dsonar.sources=backend/src,frontend/src \
                       -Dsonar.host.url=${SONAR_HOST_URL} \
-                      -Dsonar.token=squ_5586c882dfe62d759d61769e9132d4834e9a8d32 \
+                      -Dsonar.login=squ_5586c882dfe62d759d61769e9132d4834e9a8d32 \
                       -Dsonar.exclusions="**/node_modules/**,**/dist/**,**/build/**" \
                       -Dsonar.scm.disabled=true
                 """
