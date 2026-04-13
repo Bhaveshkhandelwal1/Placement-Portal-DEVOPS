@@ -1,6 +1,7 @@
 import { Request, Response } from 'express';
-import Notice, { INotice } from '../models/Notice'; // Changed import
+import Notice, { INotice } from '../models/Notice';
 import User, { IUser, UserRole } from '../models/User';
+import { sendPlacementNotification } from '../services/emailService';
 
 // @desc    Create a new placement notice
 // @route   POST /api/notices
@@ -14,10 +15,14 @@ export const createNotice = async (req: Request, res: Response): Promise<void> =
       targetSemesters, 
       targetBranches, 
       targetYear,
-      packageOffered, // Added packageOffered field
-      jobType,        // Added jobType field
-      minCGPA,        // Added minCGPA field
-      maxCGPA         // Added maxCGPA field
+      packageOffered,
+      jobType,
+      minCGPA,
+      maxCGPA,
+      role,
+      location,
+      deadline,
+      backlogCriteria
     } = req.body;
 
     // Basic validation for CGPA range
@@ -45,8 +50,25 @@ export const createNotice = async (req: Request, res: Response): Promise<void> =
       minCGPA: minCgpaNum, // Use validated number
       maxCGPA: maxCgpaNum, // Use validated number
       packageOffered, 
-      jobType        
+      jobType,
+      role,
+      location,
+      deadline: new Date(deadline),
+      backlogCriteria: backlogCriteria || 0
     });
+
+    // Fire email notifications without blocking the HTTP response
+    try {
+      // Find all registered students to receive the email
+      const allStudents = await User.find({ role: UserRole.STUDENT });
+      
+      const adminEmail = (req.user as IUser).email;
+      
+      // Run asynchronously 
+      sendPlacementNotification(allStudents as IUser[], notice, adminEmail).catch(e => console.error('Dispatch error', e));
+    } catch (filterError) {
+      console.error('Failed to query all students for emails:', filterError);
+    }
 
     res.status(201).json({
       success: true,
@@ -98,7 +120,11 @@ export const getStudentNotices = async (req: Request, res: Response): Promise<vo
       targetBranches: { $in: [String(student.branch)] }, 
       // Filter by CGPA criteria: student's CGPA must be >= minCGPA and <= maxCGPA
       minCGPA: { $lte: student.cgpa || 0 }, 
-      maxCGPA: { $gte: student.cgpa || 0 } 
+      maxCGPA: { $gte: student.cgpa || 0 },
+      $or: [
+        { backlogCriteria: { $exists: false } },
+        { backlogCriteria: { $gte: student.backlogs || 0 } }
+      ]
       // Not filtering by year for now as it might be causing issues
     }).sort({ createdAt: -1 });
 

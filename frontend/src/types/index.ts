@@ -48,6 +48,10 @@ export interface Notice {
   maxCGPA?: number;
   packageOffered: string;
   jobType: JobType;
+  role?: string;
+  location?: string;
+  deadline?: string;
+  backlogCriteria?: number;
   createdAt: string;
   updatedAt: string;
 }
@@ -89,6 +93,10 @@ export interface NoticeData {
   jobType: JobType;
   minCGPA?: number; // Added optional minCGPA
   maxCGPA?: number; // Added optional maxCGPA
+  role: string;
+  location: string;
+  deadline: string;
+  backlogCriteria: number;
 }
 
 export interface PlacementStatistics {

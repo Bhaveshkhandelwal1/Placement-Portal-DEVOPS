@@ -17,10 +17,14 @@ export interface INotice extends Document {
   targetSemesters: number[];
   targetBranches: Branch[];
   targetYear: number;
-  minCGPA: number; // Minimum CGPA required
-  maxCGPA?: number; // Optional maximum CGPA for range filtering
-  packageOffered: string; // In lakhs per annum (LPA)
+  minCGPA: number;
+  maxCGPA?: number;
+  packageOffered: string;
   jobType: JobType;
+  role: string;
+  location: string;
+  deadline: Date;
+  backlogCriteria: number;
   createdAt: Date;
   updatedAt: Date;
 }
@@ -83,6 +87,26 @@ const NoticeSchema = new Schema<INotice>(
       required: true,
       enum: Object.values(JobType),
       default: JobType.FULLTIME
+    },
+    role: {
+      type: String,
+      required: true,
+      trim: true,
+    },
+    location: {
+      type: String,
+      required: true,
+      trim: true,
+    },
+    deadline: {
+      type: Date,
+      required: true,
+    },
+    backlogCriteria: {
+      type: Number,
+      required: true,
+      default: 0,
+      min: 0,
     }
   },
   {

@@ -27,13 +27,17 @@ export function PlacementNews() {
     packageFrequency: 'Yearly',
     jobType: JobType.FULLTIME,
     minCGPA: '',
-    maxCGPA: ''
+    maxCGPA: '',
+    role: '',
+    location: '',
+    deadline: '',
+    backlogCriteria: '0'
   });
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     
-    if (!formData.companyName || !formData.description || !formData.link || !formData.packageAmount) {
+    if (!formData.companyName || !formData.description || !formData.link || !formData.packageAmount || !formData.role || !formData.location || !formData.deadline) {
       toast.error('Please fill in all required fields');
       return;
     }
@@ -73,7 +77,11 @@ export function PlacementNews() {
         packageOffered: packageOffered,
         jobType: formData.jobType,
         minCGPA: formData.minCGPA ? minCgpaNum : undefined,
-        maxCGPA: formData.maxCGPA ? maxCgpaNum : undefined
+        maxCGPA: formData.maxCGPA ? maxCgpaNum : undefined,
+        role: formData.role,
+        location: formData.location,
+        deadline: new Date(formData.deadline).toISOString(),
+        backlogCriteria: parseInt(formData.backlogCriteria) || 0
       });
       
       toast.success('Placement notice sent successfully');
@@ -91,7 +99,11 @@ export function PlacementNews() {
         packageFrequency: 'Yearly',
         jobType: JobType.FULLTIME,
         minCGPA: '',
-        maxCGPA: ''
+        maxCGPA: '',
+        role: '',
+        location: '',
+        deadline: '',
+        backlogCriteria: '0'
       });
     } catch (error: any) {
       console.error('Error creating notice:', error);
@@ -163,6 +175,40 @@ export function PlacementNews() {
           />
         </div>
 
+        <div className="grid grid-cols-2 gap-4">
+          <div>
+            <label className="block text-sm font-medium text-gray-700">Role</label>
+            <Input
+              value={formData.role}
+              onChange={(e) => setFormData(prev => ({ ...prev, role: e.target.value }))}
+              placeholder="e.g. Software Engineer"
+              required
+              disabled={isLoading}
+            />
+          </div>
+          <div>
+            <label className="block text-sm font-medium text-gray-700">Location</label>
+            <Input
+              value={formData.location}
+              onChange={(e) => setFormData(prev => ({ ...prev, location: e.target.value }))}
+              placeholder="e.g. Bangalore / Remote"
+              required
+              disabled={isLoading}
+            />
+          </div>
+        </div>
+
+        <div>
+           <label className="block text-sm font-medium text-gray-700">Apply Deadline</label>
+           <Input
+             type="datetime-local"
+             value={formData.deadline}
+             onChange={(e) => setFormData(prev => ({ ...prev, deadline: e.target.value }))}
+             required
+             disabled={isLoading}
+           />
+        </div>
+
         <div>
           <label className="block text-sm font-medium text-gray-700 mb-2">Package Offered</label>
           <div className="grid grid-cols-5 gap-4">
@@ -228,16 +274,16 @@ export function PlacementNews() {
         </div>
 
         <div>
-          <label className="block text-sm font-medium text-gray-700 mb-2">CGPA Criteria (Optional)</label>
-          <div className="grid grid-cols-2 gap-4">
+          <label className="block text-sm font-medium text-gray-700 mb-2">Academic Criteria (Optional if empty, 0 means strict filtering)</label>
+          <div className="grid grid-cols-3 gap-4">
             <div>
               <Input
                 type="text"
-                placeholder="Min CGPA (e.g., 6.5)"
+                placeholder="Min CGPA"
                 value={formData.minCGPA}
                 onChange={(e) => setFormData(prev => ({
                   ...prev,
-                  minCGPA: e.target.value.replace(/[^\d.]/g, '') // Allow only numbers and dot
+                  minCGPA: e.target.value.replace(/[^\d.]/g, '')
                 }))}
                 disabled={isLoading}
               />
@@ -245,18 +291,28 @@ export function PlacementNews() {
             <div>
               <Input
                 type="text"
-                placeholder="Max CGPA (e.g., 8.0)"
+                placeholder="Max CGPA"
                 value={formData.maxCGPA}
                 onChange={(e) => setFormData(prev => ({
                   ...prev,
-                  maxCGPA: e.target.value.replace(/[^\d.]/g, '') // Allow only numbers and dot
+                  maxCGPA: e.target.value.replace(/[^\d.]/g, '')
                 }))}
                 disabled={isLoading}
+              />
+            </div>
+            <div>
+              <Input
+                type="number"
+                placeholder="Max Active Backlogs"
+                value={formData.backlogCriteria}
+                onChange={(e) => setFormData(prev => ({ ...prev, backlogCriteria: e.target.value }))}
+                disabled={isLoading}
+                min="0"
               />
             </div>
           </div>
           <p className="mt-1 text-xs text-gray-500">
-            Leave blank if no specific CGPA range is required.
+            For Backlogs, 0 means no active backlogs allowed.
           </p>
         </div>
 

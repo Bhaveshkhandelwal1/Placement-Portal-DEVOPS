@@ -7,12 +7,16 @@ import {
   updateStudentProfile, 
   updateStudentDetailsByAdmin 
 } from '../controllers/studentController';
-import { protect, adminOnly } from '../middleware/auth';
+import { analyzeResumeText } from '../controllers/resumeAnalysisController';
+import { protect, adminOnly, studentOnly } from '../middleware/auth';
 
 const router = express.Router();
 
 // Student profile update route (student only)
 router.put('/profile', protect, updateStudentProfile);
+
+// AI resume analysis (student only; requires GEMINI_API_KEY on server)
+router.post('/resume-analysis', protect, studentOnly, analyzeResumeText);
 
 // Admin-only routes - apply middleware to protect these routes
 router.use(protect, adminOnly);

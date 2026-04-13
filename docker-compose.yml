@@ -12,6 +12,9 @@ services:
       MONGO_INITDB_DATABASE: placement_db
     volumes:
       - mongo_data:/data/db
+    ports:
+      # Expose MongoDB to the host so `npm run dev` (backend on your machine) can connect
+      - "27017:27017"
     networks:
       - placement-net
     healthcheck:
@@ -35,6 +38,8 @@ services:
       MONGODB_URI: mongodb://placement:admin123@mongodb:27017/placement_db?authSource=admin
       JWT_SECRET: ${JWT_SECRET:-super-secure-jwt-secret-change-in-production}
       REDIS_URL: ""
+      GEMINI_API_KEY: ${GEMINI_API_KEY:-}
+      GEMINI_MODEL: ${GEMINI_MODEL:-gemini-2.0-flash}
     depends_on:
       mongodb:
         condition: service_healthy

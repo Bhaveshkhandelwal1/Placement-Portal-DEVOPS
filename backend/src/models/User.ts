@@ -31,6 +31,7 @@ export interface IUser extends Document {
   branch?: Branch; // Only for students
   year?: number; // Derived from USN for students
   cgpa?: number; // Student's CGPA
+  backlogs?: number; // Number of active backlogs
   placementStatus?: 'Not Placed' | 'Placed'; // Only for students
   placedCompany?: string | null; // Only for students
   username?: string; // Only for admin
@@ -105,6 +106,11 @@ const UserSchema = new Schema<IUser>(
       type: Number,
       min: 0,
       max: 10,
+    },
+    backlogs: {
+      type: Number,
+      min: 0,
+      default: 0,
     },
     placementStatus: {
       type: String,

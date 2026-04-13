@@ -7,6 +7,8 @@ import connectDB from './config/db';
 import authRoutes from './routes/authRoutes';
 import noticeRoutes from './routes/noticeRoutes';
 import studentRoutes from './routes/studentRoutes';
+import chatRoutes from './routes/chatRoutes';
+import mockInterviewRoutes from './routes/mockInterviewRoutes';
 
 // Load env variables
 dotenv.config();
@@ -38,6 +40,8 @@ app.use(cors(corsOptions));
 app.use('/api/auth', authRoutes);
 app.use('/api/notices', noticeRoutes);
 app.use('/api/students', studentRoutes);
+app.use('/api/chatbot', chatRoutes);
+app.use('/api/mock-interview', mockInterviewRoutes);
 
 // API Health check endpoint
 app.get('/api/health', (req: Request, res: Response) => {

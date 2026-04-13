@@ -136,6 +136,12 @@ export const studentAPI = {
     
   getPlacementStatistics: () => 
     api.get<StatisticsResponse>('/students/statistics'),
+
+  analyzeResume: (data: { resumeText: string }) =>
+    api.post<{ success: boolean; report?: string; message?: string }>('/students/resume-analysis', data),
+
+  sendMockInterviewMessage: (message: string, history: any[]) =>
+    api.post<{ success: boolean; reply?: string; message?: string }>('/mock-interview/chat', { message, history }),
 };
 
 // Notice API calls

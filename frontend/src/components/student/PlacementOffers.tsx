@@ -171,9 +171,22 @@ function PlacementNoticeCard({ notice, disabled = false }: { notice: Notice; dis
         </div>
         <div className="flex items-center text-blue-600">
           <Briefcase className="h-4 w-4 mr-1" />
-          <span className="text-sm font-medium">{notice.jobType}</span>
+          <span className="text-sm font-medium">{notice.role || notice.jobType}</span>
         </div>
+        {notice.location && (
+          <div className="flex items-center text-gray-500">
+            <span className="text-sm font-medium pr-2 border-l border-gray-300 pl-3 ml-1">
+              📍 {notice.location}
+            </span>
+          </div>
+        )}
       </div>
+
+      {notice.deadline && (
+        <div className="mt-3 text-sm text-red-600 font-bold bg-red-50 p-2 rounded inline-block">
+          Applications Close: {new Date(notice.deadline).toLocaleDateString()}
+        </div>
+      )}
       
       <p className="mt-3 text-gray-700">{notice.description}</p>
       
