@@ -2,23 +2,31 @@ pipeline {
     agent any
 
     environment {
-        PATH              = "/usr/local/bin:${env.PATH}"
-        AWS_REGION        = 'us-east-1'
-        AWS_ACCOUNT_ID    = '505017489008'
-        ECR_REGISTRY      = "${AWS_ACCOUNT_ID}.dkr.ecr.${AWS_REGION}.amazonaws.com"
-        IMAGE_BACKEND     = "${ECR_REGISTRY}/placement-portal-backend"
-        IMAGE_FRONTEND    = "${ECR_REGISTRY}/placement-portal-frontend"
-        SONAR_HOST_URL    = 'http://32.195.141.188:9000'
-        SONAR_PROJECT_KEY = 'placement-portal'
-        DOCKER_BUILDKIT   = '1'
+        PATH            = "/usr/local/bin:${env.PATH}"
+        DOCKER_BUILDKIT = '1'
+    }
+
+    options {
+        timestamps()
+        ansiColor('xterm')
+        disableConcurrentBuilds()
+        buildDiscarder(logRotator(numToKeepStr: '20'))
+    }
+
+    parameters {
+        booleanParam(name: 'RUN_SONAR', defaultValue: false, description: 'Run SonarQube scan (requires credentials configured in Jenkins).')
+        booleanParam(name: 'DEPLOY_AWS', defaultValue: false, description: 'Deploy to AWS (ECR + SSM). Keep OFF for local/teacher demo.')
+        string(name: 'AWS_REGION', defaultValue: 'us-east-1', description: 'AWS region for ECR/SSM (only used if DEPLOY_AWS=true).')
+        string(name: 'AWS_ACCOUNT_ID', defaultValue: '', description: 'AWS account ID for ECR registry (only used if DEPLOY_AWS=true).')
+        string(name: 'SONAR_HOST_URL', defaultValue: '', description: 'SonarQube host URL (only used if RUN_SONAR=true).')
+        string(name: 'SONAR_PROJECT_KEY', defaultValue: 'placement-portal', description: 'SonarQube project key (only used if RUN_SONAR=true).')
     }
 
     stages {
 
-        // ── Stage 1: Checkout ──────────────────────────────────────────────
-        stage('Checkout & Setup') {
+        stage('Checkout') {
             steps {
-                git branch: 'main', url: 'https://github.com/Bhaveshkhandelwal1/Placement-Portal-DEVOPS.git'
+                checkout scm
                 script {
                     env.GIT_COMMIT_SHORT = sh(
                         script: "git rev-parse --short HEAD",
@@ -29,78 +37,138 @@ pipeline {
             }
         }
 
-        // ── Stage 3: SonarQube Analysis ───────────────────────────────────
+        stage('Install, Lint, Test, Build') {
+            steps {
+                sh """
+                    set -euxo pipefail
+
+                    # Backend
+                    docker run --rm -t \\
+                      --network host \\
+                      -e NPM_CONFIG_REGISTRY='https://registry.npmjs.org/' \\
+                      -e NPM_CONFIG_FETCH_RETRIES='5' \\
+                      -e NPM_CONFIG_FETCH_RETRY_MINTIMEOUT='20000' \\
+                      -e NPM_CONFIG_FETCH_RETRY_MAXTIMEOUT='120000' \\
+                      -v "\$(pwd)":/workspace -w /workspace/backend \\
+                      node:20-bullseye \\
+                      bash -lc "npm ci --no-audit --no-fund && npm run lint && npm test && npm run build"
+
+                    # Frontend
+                    docker run --rm -t \\
+                      --network host \\
+                      -e NPM_CONFIG_REGISTRY='https://registry.npmjs.org/' \\
+                      -e NPM_CONFIG_FETCH_RETRIES='5' \\
+                      -e NPM_CONFIG_FETCH_RETRY_MINTIMEOUT='20000' \\
+                      -e NPM_CONFIG_FETCH_RETRY_MAXTIMEOUT='120000' \\
+                      -v "\$(pwd)":/workspace -w /workspace/frontend \\
+                      node:20-bullseye \\
+                      bash -lc "npm ci --no-audit --no-fund && npm run lint && npm run build"
+                """
+            }
+        }
+
         stage('SonarQube Analysis') {
+            when { expression { return params.RUN_SONAR } }
             steps {
-                echo "🔍 Running SonarQube code analysis..."
-                sh """
-                    docker run --rm \
-                      -v "\$(pwd)":/usr/src \
-                      --add-host=host.docker.internal:host-gateway \
-                      -e SONAR_SCANNER_OPTS="-Xmx512m" \
-                      sonarsource/sonar-scanner-cli \
-                      -Dsonar.projectKey=${SONAR_PROJECT_KEY} \
-                      -Dsonar.projectName="Placement Portal" \
-                      -Dsonar.sources=backend/src,frontend/src \
-                      -Dsonar.host.url=${SONAR_HOST_URL} \
-                      -Dsonar.login=sqa_88ae3b6e1b6d0bf1f66a5b4ee9f6a55a073b45cd \
-                      -Dsonar.exclusions="**/node_modules/**,**/dist/**,**/build/**" \
-                      -Dsonar.scm.disabled=true
-                """
-                echo "✅ SonarQube scan completed"
+                script {
+                    if (!params.SONAR_HOST_URL?.trim()) {
+                        error("RUN_SONAR=true but SONAR_HOST_URL is empty. Set the parameter or configure it in Jenkins.")
+                    }
+                }
+                withCredentials([string(credentialsId: 'sonarqube-token', variable: 'SONAR_TOKEN')]) {
+                    sh """
+                        set -euxo pipefail
+                        docker run --rm \\
+                          -v "\$(pwd)":/usr/src \\
+                          --add-host=host.docker.internal:host-gateway \\
+                          -e SONAR_SCANNER_OPTS="-Xmx512m" \\
+                          sonarsource/sonar-scanner-cli \\
+                          -Dsonar.projectKey='${params.SONAR_PROJECT_KEY}' \\
+                          -Dsonar.projectName='Placement Portal' \\
+                          -Dsonar.sources=backend/src,frontend/src \\
+                          -Dsonar.host.url='${params.SONAR_HOST_URL}' \\
+                          -Dsonar.login="\${SONAR_TOKEN}" \\
+                          -Dsonar.exclusions="**/node_modules/**,**/dist/**,**/build/**" \\
+                          -Dsonar.scm.disabled=true
+                    """
+                }
             }
         }
 
-        // ── Stage 4: ECR Login ─────────────────────────────────────────────
+        stage('Docker Build (Local)') {
+            steps {
+                sh """
+                    set -euxo pipefail
+                    docker build -t placement-portal-backend:${env.GIT_COMMIT_SHORT} -t placement-portal-backend:latest ./backend
+                    docker build -t placement-portal-frontend:${env.GIT_COMMIT_SHORT} -t placement-portal-frontend:latest ./frontend
+                """
+            }
+        }
+
+        stage('Compose Up + Smoke Test') {
+            steps {
+                sh """
+                    set -euxo pipefail
+
+                    # Start core services using compose healthchecks (no fake sleeps).
+                    docker compose -f docker-compose.yml up -d --build mongodb backend frontend
+
+                    # Smoke test backend health from inside the compose network.
+                    docker run --rm --network placement-net curlimages/curl:8.7.1 \\
+                      --fail --retry 30 --retry-all-errors --retry-delay 1 \\
+                      http://backend:5000/health
+                """
+            }
+        }
+
         stage('ECR Login') {
+            when { expression { return params.DEPLOY_AWS } }
             steps {
-                echo "🔐 Logging in to AWS ECR..."
+                script {
+                    if (!params.AWS_ACCOUNT_ID?.trim()) {
+                        error("DEPLOY_AWS=true but AWS_ACCOUNT_ID is empty.")
+                    }
+                }
                 sh """
-                    aws ecr get-login-password --region ${AWS_REGION} | \
-                    docker login --username AWS --password-stdin ${ECR_REGISTRY}
+                    set -euxo pipefail
+                    export ECR_REGISTRY="${params.AWS_ACCOUNT_ID}.dkr.ecr.${params.AWS_REGION}.amazonaws.com"
+                    aws ecr get-login-password --region "${params.AWS_REGION}" | docker login --username AWS --password-stdin "\${ECR_REGISTRY}"
                 """
-                echo "✅ Logged in to ECR: ${ECR_REGISTRY}"
             }
         }
 
-        // ── Stage 5: Docker Build & Push to ECR (Sequential) ────────────────
-        stage('Docker Build Backend Image') {
+        stage('Docker Push to ECR') {
+            when { expression { return params.DEPLOY_AWS } }
             steps {
-                echo "🐳 Building & pushing backend image to ECR..."
                 sh """
-                    docker build \
-                        -t ${IMAGE_BACKEND}:${env.GIT_COMMIT_SHORT} \
-                        -t ${IMAGE_BACKEND}:latest \
-                        ./backend
+                    set -euxo pipefail
+                    export ECR_REGISTRY="${params.AWS_ACCOUNT_ID}.dkr.ecr.${params.AWS_REGION}.amazonaws.com"
+                    export IMAGE_BACKEND="\${ECR_REGISTRY}/placement-portal-backend"
+                    export IMAGE_FRONTEND="\${ECR_REGISTRY}/placement-portal-frontend"
 
-                    docker push ${IMAGE_BACKEND}:${env.GIT_COMMIT_SHORT}
-                    docker push ${IMAGE_BACKEND}:latest
+                    docker tag placement-portal-backend:${env.GIT_COMMIT_SHORT} "\${IMAGE_BACKEND}:${env.GIT_COMMIT_SHORT}"
+                    docker tag placement-portal-backend:${env.GIT_COMMIT_SHORT} "\${IMAGE_BACKEND}:latest"
+                    docker tag placement-portal-frontend:${env.GIT_COMMIT_SHORT} "\${IMAGE_FRONTEND}:${env.GIT_COMMIT_SHORT}"
+                    docker tag placement-portal-frontend:${env.GIT_COMMIT_SHORT} "\${IMAGE_FRONTEND}:latest"
+
+                    docker push "\${IMAGE_BACKEND}:${env.GIT_COMMIT_SHORT}"
+                    docker push "\${IMAGE_BACKEND}:latest"
+                    docker push "\${IMAGE_FRONTEND}:${env.GIT_COMMIT_SHORT}"
+                    docker push "\${IMAGE_FRONTEND}:latest"
                 """
-                echo "✅ Backend image pushed: ${IMAGE_BACKEND}:${env.GIT_COMMIT_SHORT}"
             }
         }
 
-        stage('Docker Build Frontend Image') {
-            steps {
-                echo "🐳 Building & pushing frontend image to ECR..."
-                sh """
-                    docker build \
-                        -t ${IMAGE_FRONTEND}:${env.GIT_COMMIT_SHORT} \
-                        -t ${IMAGE_FRONTEND}:latest \
-                        ./frontend
-
-                    docker push ${IMAGE_FRONTEND}:${env.GIT_COMMIT_SHORT}
-                    docker push ${IMAGE_FRONTEND}:latest
-                """
-                echo "✅ Frontend image pushed: ${IMAGE_FRONTEND}:${env.GIT_COMMIT_SHORT}"
-            }
-        }
-
-        // ── Stage 6: Deploy to AWS EC2 via SSM ───────────────────────────
-        stage('Deploy to AWS EC2') {
+        stage('Deploy to AWS EC2 (SSM)') {
+            when { expression { return params.DEPLOY_AWS } }
             steps {
                 echo "🚀 Deploying to AWS EC2 instances via SSM..."
                 script {
+                    def AWS_REGION = params.AWS_REGION
+                    def ECR_REGISTRY = "${params.AWS_ACCOUNT_ID}.dkr.ecr.${AWS_REGION}.amazonaws.com"
+                    def IMAGE_BACKEND = "${ECR_REGISTRY}/placement-portal-backend"
+                    def IMAGE_FRONTEND = "${ECR_REGISTRY}/placement-portal-frontend"
+
                     // Lookup instance IDs (SSM uses instance ID, not IP)
                     def backendInstanceId = sh(
                         script: """
@@ -155,7 +223,7 @@ pipeline {
                                 "aws ecr get-login-password --region ${AWS_REGION} | docker login --username AWS --password-stdin ${ECR_REGISTRY}",
                                 "docker pull ${IMAGE_BACKEND}:${env.GIT_COMMIT_SHORT}",
                                 "docker rm -f \$(docker ps -aq) 2>/dev/null || true",
-                                "docker run -d --name placement-backend --restart unless-stopped -p 5000:5000 -e PORT=5000 -e NODE_ENV=production -e MONGODB_URI=\\"mongodb://${mongoIp}:27017/placement_db\\" -e JWT_SECRET=\\"super-secure-jwt-secret-change-in-prod\\" ${IMAGE_BACKEND}:${env.GIT_COMMIT_SHORT}"
+                                "docker run -d --name placement-backend --restart unless-stopped -p 5000:5000 -e PORT=5000 -e NODE_ENV=production -e MONGODB_URI=\\"mongodb://${mongoIp}:27017/placement_db\\" -e JWT_SECRET=\\"${JWT_SECRET:-change-me}\\" ${IMAGE_BACKEND}:${env.GIT_COMMIT_SHORT}"
                               ]' \
                               --region ${AWS_REGION} \
                               --query 'Command.CommandId' \
@@ -224,7 +292,8 @@ pipeline {
     post {
         always {
             echo "🧹 Pipeline finished. Cleaning up workspace and unused docker images..."
-            sh "docker logout ${ECR_REGISTRY} 2>/dev/null || true"
+            sh "docker logout 2>/dev/null || true"
+            sh "docker compose -f docker-compose.yml down -v 2>/dev/null || true"
             sh "docker system prune -af --filter 'until=24h' 2>/dev/null || true"
             cleanWs()
         }
