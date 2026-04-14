@@ -7,6 +7,7 @@ pipeline {
     }
 
     options {
+        skipDefaultCheckout(true)
         disableConcurrentBuilds()
         buildDiscarder(logRotator(numToKeepStr: '20'))
     }
@@ -24,12 +25,23 @@ pipeline {
 
         stage('Checkout') {
             steps {
-                checkout scm
+                timeout(time: 30, unit: 'MINUTES') {
+                    checkout([
+                        $class: 'GitSCM',
+                        branches: scm.branches,
+                        userRemoteConfigs: scm.userRemoteConfigs,
+                        doGenerateSubmoduleConfigurations: false,
+                        extensions: [[
+                            $class: 'CloneOption',
+                            depth: 1,
+                            noTags: true,
+                            shallow: true,
+                            timeout: 30
+                        ]]
+                    ])
+                }
                 script {
-                    env.GIT_COMMIT_SHORT = sh(
-                        script: "git rev-parse --short HEAD",
-                        returnStdout: true
-                    ).trim()
+                    env.GIT_COMMIT_SHORT = sh(script: "git rev-parse --short HEAD", returnStdout: true).trim()
                     echo "✅ Checked out commit: ${env.GIT_COMMIT_SHORT}"
                 }
             }
@@ -290,10 +302,16 @@ pipeline {
     post {
         always {
             echo "🧹 Pipeline finished. Cleaning up workspace and unused docker images..."
-            sh "docker logout 2>/dev/null || true"
-            sh "docker compose -f docker-compose.yml down -v 2>/dev/null || true"
-            sh "docker system prune -af --filter 'until=24h' 2>/dev/null || true"
-            cleanWs()
+            script {
+                // If checkout fails, Declarative may run post after leaving the node context.
+                // Wrapping in node() makes cleanup safe in that case.
+                node {
+                    sh "docker logout 2>/dev/null || true"
+                    sh "docker compose -f docker-compose.yml down -v 2>/dev/null || true"
+                    sh "docker system prune -af --filter 'until=24h' 2>/dev/null || true"
+                    cleanWs()
+                }
+            }
         }
         success {
             echo "🎉 Build #${env.BUILD_NUMBER} SUCCEEDED! Commit: ${env.GIT_COMMIT_SHORT}"
