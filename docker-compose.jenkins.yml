@@ -2,7 +2,9 @@ version: '3.8'
 
 services:
   jenkins:
-    image: jenkins/jenkins:lts
+    build:
+      context: .
+      dockerfile: jenkins/Dockerfile
     container_name: jenkins_cicd
     restart: unless-stopped
     privileged: true

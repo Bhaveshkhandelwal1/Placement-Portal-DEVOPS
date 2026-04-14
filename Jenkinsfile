@@ -309,7 +309,7 @@ pipeline {
                     sh "docker logout 2>/dev/null || true"
                     sh "docker compose -f docker-compose.yml down -v 2>/dev/null || true"
                     sh "docker system prune -af --filter 'until=24h' 2>/dev/null || true"
-                    cleanWs()
+                    deleteDir()
                 }
             }
         }
