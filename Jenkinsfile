@@ -61,7 +61,7 @@ pipeline {
                       -e NPM_CONFIG_FETCH_RETRY_MAXTIMEOUT='120000' \\
                       -v "\$(pwd)":/workspace -w /workspace/backend \\
                       node:20-bullseye \\
-                      bash -lc "npm ci --no-audit --no-fund && npm run lint && npm test && npm run build"
+                      bash -lc "if [ -f package-lock.json ]; then npm ci --no-audit --no-fund; else npm install --no-audit --no-fund; fi && npm run lint && npm test && npm run build"
 
                     # Frontend
                     docker run --rm -t \\
@@ -72,7 +72,7 @@ pipeline {
                       -e NPM_CONFIG_FETCH_RETRY_MAXTIMEOUT='120000' \\
                       -v "\$(pwd)":/workspace -w /workspace/frontend \\
                       node:20-bullseye \\
-                      bash -lc "npm ci --no-audit --no-fund && npm run lint && npm run build"
+                      bash -lc "if [ -f package-lock.json ]; then npm ci --no-audit --no-fund; else npm install --no-audit --no-fund; fi && npm run lint && npm run build"
                 """
             }
         }
