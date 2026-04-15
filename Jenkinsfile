@@ -98,7 +98,7 @@ test -d "$ROOT_DIR/frontend/src"
 
 # On Linux, host.docker.internal often doesn't resolve inside containers.
 # If the user provided host.docker.internal, rewrite it to the Docker host gateway IP.
-SONAR_URL="${SONAR_HOST_URL}"
+SONAR_URL="$(printf '%s' "${SONAR_HOST_URL}" | tr -d '\r' | xargs)"
 if [[ "${SONAR_URL}" == *"host.docker.internal"* ]]; then
   if ! curl -fsS --max-time 3 "${SONAR_URL%/}/api/system/status" >/dev/null 2>&1; then
     # Get default gateway without needing the `ip` command (often missing in slim images).
