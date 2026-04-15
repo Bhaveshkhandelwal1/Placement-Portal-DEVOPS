@@ -89,6 +89,7 @@ pipeline {
                         set -euxo pipefail
                         docker run --rm \\
                           -v "\$(pwd)":/usr/src \\
+                          -w /usr/src \\
                           --add-host=host.docker.internal:host-gateway \\
                           -e SONAR_SCANNER_OPTS="-Xmx512m" \\
                           sonarsource/sonar-scanner-cli \\
@@ -96,7 +97,7 @@ pipeline {
                           -Dsonar.projectName='Placement Portal' \\
                           -Dsonar.sources=backend/src,frontend/src \\
                           -Dsonar.host.url='${params.SONAR_HOST_URL}' \\
-                          -Dsonar.login="\${SONAR_TOKEN}" \\
+                          -Dsonar.token="\${SONAR_TOKEN}" \\
                           -Dsonar.exclusions="**/node_modules/**,**/dist/**,**/build/**" \\
                           -Dsonar.scm.disabled=true
                     """
