@@ -84,8 +84,8 @@ pipeline {
                         error("RUN_SONAR=true but SONAR_HOST_URL is empty. Set the parameter or configure it in Jenkins.")
                     }
                 }
-                catchError(buildResult: 'UNSTABLE', stageResult: 'FAILURE') {
-                    timeout(time: 20, unit: 'MINUTES') {
+                catchError(buildResult: 'FAILURE', stageResult: 'FAILURE') {
+                    timeout(time: 60, unit: 'MINUTES') {
                         withCredentials([string(credentialsId: 'sonarqube-token', variable: 'SONAR_TOKEN')]) {
                     withEnv([
                         "SONAR_HOST_URL=${params.SONAR_HOST_URL}",
@@ -156,6 +156,14 @@ if [ ! -x "${SCANNER_DIR}/bin/sonar-scanner" ]; then
   mv "${EXTRACTED_DIR}" "${SCANNER_DIR}"
 fi
 
+# Keep scanner in foreground so Jenkins can terminate it reliably on timeout/restart.
+# Also kill the whole process group on TERM/INT so we don't leave scanner running.
+cleanup() {
+  echo "Stopping SonarScanner..."
+  kill -TERM 0 >/dev/null 2>&1 || true
+}
+trap cleanup INT TERM
+
 "${SCANNER_DIR}/bin/sonar-scanner" \
   -Dsonar.projectKey="${SONAR_PROJECT_KEY}" \
   -Dsonar.projectName="Placement Portal" \
@@ -164,14 +172,7 @@ fi
   -Dsonar.host.url="${SONAR_URL}" \
   -Dsonar.token="${SONAR_TOKEN}" \
   -Dsonar.exclusions="**/node_modules/**,**/dist/**,**/build/**" \
-  -Dsonar.scm.disabled=true &
-
-SCANNER_PID=$!
-while kill -0 "${SCANNER_PID}" >/dev/null 2>&1; do
-  echo "SonarScanner still running... (pid=${SCANNER_PID})"
-  sleep 30
-done
-wait "${SCANNER_PID}"
+  -Dsonar.scm.disabled=true
 '''
                     }
                         }
@@ -299,9 +300,7 @@ wait "${SCANNER_PID}"
                     echo "📍 MongoDB IP: ${mongoIp}"
 
                     if (!backendInstanceId || backendInstanceId == 'None' || !frontendInstanceId || frontendInstanceId == 'None') {
-                        echo "⚠️ EC2 instances not running. Run: cd infrastructure && terraform apply -auto-approve"
-                        currentBuild.result = 'UNSTABLE'
-                        return
+                        error("EC2 instances not running. Run: cd infrastructure && terraform apply -auto-approve")
                     }
 
                     // ── Deploy Backend via SSM ──────────────────────────────
@@ -396,9 +395,6 @@ wait "${SCANNER_PID}"
         }
         success {
             echo "🎉 Build #${env.BUILD_NUMBER} SUCCEEDED! Commit: ${env.GIT_COMMIT_SHORT}"
-        }
-        unstable {
-            echo "⚠️ Build #${env.BUILD_NUMBER} UNSTABLE — Infrastructure may need provisioning via Terraform."
         }
         failure {
             echo "❌ Build #${env.BUILD_NUMBER} FAILED! Check the logs above."
