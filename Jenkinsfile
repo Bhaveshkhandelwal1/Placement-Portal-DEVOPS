@@ -120,6 +120,10 @@ pipeline {
                 sh """
                     set -euxo pipefail
                     export COMPOSE_PROJECT_NAME="pp-\${BUILD_NUMBER}"
+                    export MONGO_HOST_PORT=0
+                    export FRONTEND_HOST_PORT=0
+                    export SONAR_HOST_PORT=0
+                    export REGISTRY_HOST_PORT=0
 
                     # Start core services using compose healthchecks (no fake sleeps).
                     docker compose -f docker-compose.yml -f docker-compose.ci.yml up -d --build mongodb backend frontend

@@ -13,7 +13,7 @@ services:
       - mongo_data:/data/db
     ports:
       # Expose MongoDB to the host so `npm run dev` (backend on your machine) can connect
-      - "27017:27017"
+      - "${MONGO_HOST_PORT:-27017}:27017"
     networks:
       - placement-net
     healthcheck:
@@ -61,7 +61,7 @@ services:
       dockerfile: Dockerfile
     restart: unless-stopped
     ports:
-      - "80:8080"
+      - "${FRONTEND_HOST_PORT:-80}:8080"
     depends_on:
       backend:
         condition: service_healthy
@@ -73,7 +73,7 @@ services:
     image: sonarqube:community
     restart: unless-stopped
     ports:
-      - "9000:9000"
+      - "${SONAR_HOST_PORT:-9000}:9000"
     environment:
       SONAR_ES_BOOTSTRAP_CHECKS_DISABLE: "true"
     volumes:
@@ -94,7 +94,7 @@ services:
     image: registry:2
     restart: unless-stopped
     ports:
-      - "5001:5000"
+      - "${REGISTRY_HOST_PORT:-5001}:5000"
     volumes:
       - registry_data:/var/lib/registry
     networks:
