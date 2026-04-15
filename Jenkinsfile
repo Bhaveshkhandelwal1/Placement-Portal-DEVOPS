@@ -2,7 +2,7 @@ pipeline {
     agent any
 
     environment {
-        PATH            = "/usr/local/bin:${env.PATH}"
+        PATH            = "/var/jenkins_home/bin:/usr/local/bin:${env.PATH}"
     }
 
     options {
@@ -228,19 +228,16 @@ trap cleanup INT TERM
                 sh """
                     set -euxo pipefail
                     export ECR_REGISTRY="${params.AWS_ACCOUNT_ID}.dkr.ecr.${params.AWS_REGION}.amazonaws.com"
-                    if command -v aws >/dev/null 2>&1; then
-                      aws ecr get-login-password --region "${params.AWS_REGION}" | docker login --username AWS --password-stdin "\${ECR_REGISTRY}"
-                    else
-                      # Jenkins agent image may not have awscli; run it via docker.
-                      docker run --rm \
-                        -e AWS_ACCESS_KEY_ID \
-                        -e AWS_SECRET_ACCESS_KEY \
-                        -e AWS_SESSION_TOKEN \
-                        -e AWS_DEFAULT_REGION="${params.AWS_REGION}" \
-                        -v "\$HOME/.aws:/root/.aws:ro" \
-                        amazon/aws-cli \
-                        ecr get-login-password --region "${params.AWS_REGION}" | docker login --username AWS --password-stdin "\${ECR_REGISTRY}"
+                    
+                    if ! command -v aws >/dev/null 2>&1; then
+                      echo "Installing AWS CLI directly in Jenkins home to avoid Docker volume context issues..."
+                      curl -qfsSL "https://awscli.amazonaws.com/awscli-exe-linux-x86_64.zip" -o "awscliv2.zip"
+                      unzip -oq awscliv2.zip
+                      ./aws/install -i /var/jenkins_home/aws-cli -b /var/jenkins_home/bin || true
+                      rm -rf awscliv2.zip aws
                     fi
+                    
+                    aws ecr get-login-password --region "${params.AWS_REGION}" | docker login --username AWS --password-stdin "\${ECR_REGISTRY}"
                 """
             }
         }
