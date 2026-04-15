@@ -101,7 +101,19 @@ test -d "$ROOT_DIR/frontend/src"
 SONAR_URL="${SONAR_HOST_URL}"
 if [[ "${SONAR_URL}" == *"host.docker.internal"* ]]; then
   if ! curl -fsS --max-time 3 "${SONAR_URL%/}/api/system/status" >/dev/null 2>&1; then
-    GW_IP="$(ip route | awk '/default/ {print $3; exit}')"
+    # Get default gateway without needing the `ip` command (often missing in slim images).
+    # /proc/net/route stores gateway in little-endian hex.
+    GW_HEX="$(awk '$2=="00000000" {print $3; exit}' /proc/net/route 2>/dev/null || true)"
+    GW_IP=""
+    if [[ -n "${GW_HEX}" && "${GW_HEX}" != "00000000" ]]; then
+      # Example: 0101A8C0 -> 192.168.1.1
+      GW_IP="$(printf '%d.%d.%d.%d' \
+        $((16#${GW_HEX:6:2})) \
+        $((16#${GW_HEX:4:2})) \
+        $((16#${GW_HEX:2:2})) \
+        $((16#${GW_HEX:0:2})) \
+      )"
+    fi
     if [[ -n "${GW_IP}" ]]; then
       SONAR_URL="${SONAR_URL/host.docker.internal/${GW_IP}}"
     fi
