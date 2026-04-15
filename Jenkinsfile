@@ -225,20 +225,22 @@ trap cleanup INT TERM
                         error("DEPLOY_AWS=true but AWS_ACCOUNT_ID is empty.")
                     }
                 }
-                sh """
-                    set -euxo pipefail
-                    export ECR_REGISTRY="${params.AWS_ACCOUNT_ID}.dkr.ecr.${params.AWS_REGION}.amazonaws.com"
-                    
-                    if ! command -v aws >/dev/null 2>&1; then
-                      echo "Installing AWS CLI directly in Jenkins home to avoid Docker volume context issues..."
-                      curl -qfsSL "https://awscli.amazonaws.com/awscli-exe-linux-x86_64.zip" -o "awscliv2.zip"
-                      unzip -oq awscliv2.zip
-                      ./aws/install -i /var/jenkins_home/aws-cli -b /var/jenkins_home/bin || true
-                      rm -rf awscliv2.zip aws
-                    fi
-                    
-                    aws ecr get-login-password --region "${params.AWS_REGION}" | docker login --username AWS --password-stdin "\${ECR_REGISTRY}"
-                """
+                withCredentials([usernamePassword(credentialsId: 'aws-creds', passwordVariable: 'AWS_SECRET_ACCESS_KEY', usernameVariable: 'AWS_ACCESS_KEY_ID')]) {
+                    sh """
+                        set -euxo pipefail
+                        export ECR_REGISTRY="${params.AWS_ACCOUNT_ID}.dkr.ecr.${params.AWS_REGION}.amazonaws.com"
+                        
+                        if ! command -v aws >/dev/null 2>&1; then
+                          echo "Installing AWS CLI directly in Jenkins home to avoid Docker volume context issues..."
+                          curl -qfsSL "https://awscli.amazonaws.com/awscli-exe-linux-x86_64.zip" -o "awscliv2.zip"
+                          unzip -oq awscliv2.zip
+                          ./aws/install -i /var/jenkins_home/aws-cli -b /var/jenkins_home/bin || true
+                          rm -rf awscliv2.zip aws
+                        fi
+                        
+                        aws ecr get-login-password --region "${params.AWS_REGION}" | docker login --username AWS --password-stdin "\${ECR_REGISTRY}"
+                    """
+                }
             }
         }
 
@@ -267,8 +269,9 @@ trap cleanup INT TERM
         stage('Deploy to AWS EC2 (SSM)') {
             when { expression { return params.DEPLOY_AWS && !params.SONAR_ONLY } }
             steps {
-                echo "🚀 Deploying to AWS EC2 instances via SSM..."
-                script {
+                withCredentials([usernamePassword(credentialsId: 'aws-creds', passwordVariable: 'AWS_SECRET_ACCESS_KEY', usernameVariable: 'AWS_ACCESS_KEY_ID')]) {
+                    echo "🚀 Deploying to AWS EC2 instances via SSM..."
+                    script {
                     def AWS_REGION = params.AWS_REGION
                     def ECR_REGISTRY = "${params.AWS_ACCOUNT_ID}.dkr.ecr.${AWS_REGION}.amazonaws.com"
                     def IMAGE_BACKEND = "${ECR_REGISTRY}/placement-portal-backend"
@@ -386,6 +389,7 @@ trap cleanup INT TERM
                     echo "🎉 Deployment complete!"
                     echo "🌐 Application URL: http://${albDns}"
                     echo "🔧 Backend API:     http://${albDns}/api/health"
+                }
                 }
             }
         }
