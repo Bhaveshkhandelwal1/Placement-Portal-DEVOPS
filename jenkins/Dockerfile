@@ -13,6 +13,10 @@ RUN apt-get update \
     > /etc/apt/sources.list.d/docker.list \
   && apt-get update \
   && apt-get install -y --no-install-recommends docker-ce-cli docker-compose-plugin \
+  \
+  # Node.js 20 + npm for running backend/frontend build steps without docker volume mounts.
+  && curl -fsSL https://deb.nodesource.com/setup_20.x | bash - \
+  && apt-get install -y --no-install-recommends nodejs \
   && rm -rf /var/lib/apt/lists/*
 
 USER jenkins

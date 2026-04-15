@@ -49,31 +49,31 @@ pipeline {
 
         stage('Install, Lint, Test, Build') {
             steps {
-                sh """
-                    set -euxo pipefail
-
-                    # Backend
-                    docker run --rm -t \\
-                      --network host \\
-                      -e NPM_CONFIG_REGISTRY='https://registry.npmjs.org/' \\
-                      -e NPM_CONFIG_FETCH_RETRIES='5' \\
-                      -e NPM_CONFIG_FETCH_RETRY_MINTIMEOUT='20000' \\
-                      -e NPM_CONFIG_FETCH_RETRY_MAXTIMEOUT='120000' \\
-                      -v "\$(pwd)":/workspace -w /workspace/backend \\
-                      node:20-bullseye \\
-                      bash -lc "if [ -f package-lock.json ]; then npm ci --no-audit --no-fund; else npm install --no-audit --no-fund; fi && npm run lint && npm test && npm run build"
-
-                    # Frontend
-                    docker run --rm -t \\
-                      --network host \\
-                      -e NPM_CONFIG_REGISTRY='https://registry.npmjs.org/' \\
-                      -e NPM_CONFIG_FETCH_RETRIES='5' \\
-                      -e NPM_CONFIG_FETCH_RETRY_MINTIMEOUT='20000' \\
-                      -e NPM_CONFIG_FETCH_RETRY_MAXTIMEOUT='120000' \\
-                      -v "\$(pwd)":/workspace -w /workspace/frontend \\
-                      node:20-bullseye \\
-                      bash -lc "if [ -f package-lock.json ]; then npm ci --no-audit --no-fund; else npm install --no-audit --no-fund; fi && npm run lint && npm run build"
-                """
+                dir('backend') {
+                    sh """
+                        set -euxo pipefail
+                        npm config set registry "https://registry.npmjs.org/"
+                        npm config set fetch-retries "5"
+                        npm config set fetch-retry-mintimeout "20000"
+                        npm config set fetch-retry-maxtimeout "120000"
+                        if [ -f package-lock.json ]; then npm ci --no-audit --no-fund; else npm install --no-audit --no-fund; fi
+                        npm run lint
+                        npm test
+                        npm run build
+                    """
+                }
+                dir('frontend') {
+                    sh """
+                        set -euxo pipefail
+                        npm config set registry "https://registry.npmjs.org/"
+                        npm config set fetch-retries "5"
+                        npm config set fetch-retry-mintimeout "20000"
+                        npm config set fetch-retry-maxtimeout "120000"
+                        if [ -f package-lock.json ]; then npm ci --no-audit --no-fund; else npm install --no-audit --no-fund; fi
+                        npm run lint
+                        npm run build
+                    """
+                }
             }
         }
 
