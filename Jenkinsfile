@@ -387,14 +387,10 @@ trap cleanup INT TERM
         always {
             echo "🧹 Pipeline finished. Cleaning up workspace and unused docker images..."
             script {
-                // If checkout fails, Declarative may run post after leaving the node context.
-                // Wrapping in node() makes cleanup safe in that case.
-                node {
-                    sh "docker logout 2>/dev/null || true"
-                    sh "export COMPOSE_PROJECT_NAME=\"pp-\${BUILD_NUMBER}\" && docker compose -f docker-compose.yml -f docker-compose.ci.yml down -v 2>/dev/null || true"
-                    sh "docker system prune -af --filter 'until=24h' 2>/dev/null || true"
-                    deleteDir()
-                }
+                sh "docker logout 2>/dev/null || true"
+                sh "export COMPOSE_PROJECT_NAME=\"pp-\${BUILD_NUMBER}\" && docker compose -f docker-compose.yml -f docker-compose.ci.yml down -v 2>/dev/null || true"
+                sh "docker system prune -af --filter 'until=24h' 2>/dev/null || true"
+                deleteDir()
             }
         }
         success {
