@@ -87,8 +87,10 @@ pipeline {
                 withCredentials([string(credentialsId: 'sonarqube-token', variable: 'SONAR_TOKEN')]) {
                     sh """
                         set -euxo pipefail
+                        ROOT_DIR="\$(pwd)"
+                        test -d "\${ROOT_DIR}/backend" && test -d "\${ROOT_DIR}/frontend"
                         docker run --rm \\
-                          -v "\$(pwd)":/usr/src \\
+                          -v "\${ROOT_DIR}":/usr/src \\
                           -w /usr/src \\
                           --add-host=host.docker.internal:host-gateway \\
                           -e SONAR_SCANNER_OPTS="-Xmx512m" \\
