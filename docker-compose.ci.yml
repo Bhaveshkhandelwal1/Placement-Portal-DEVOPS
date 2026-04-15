@@ -1,0 +1,16 @@
+services:
+  mongodb:
+    ports: []
+
+  backend:
+    ports: []
+
+  frontend:
+    ports: []
+
+  sonarqube:
+    ports: []
+
+  registry:
+    ports: []
+

@@ -122,7 +122,7 @@ pipeline {
                     export COMPOSE_PROJECT_NAME="pp-\${BUILD_NUMBER}"
 
                     # Start core services using compose healthchecks (no fake sleeps).
-                    docker compose -f docker-compose.yml up -d --build mongodb backend frontend
+                    docker compose -f docker-compose.yml -f docker-compose.ci.yml up -d --build mongodb backend frontend
 
                     # Smoke test backend health from inside the compose network.
                     docker run --rm --network "\${COMPOSE_PROJECT_NAME}_placement-net" curlimages/curl:8.7.1 \\
@@ -308,7 +308,7 @@ pipeline {
                 // Wrapping in node() makes cleanup safe in that case.
                 node {
                     sh "docker logout 2>/dev/null || true"
-                    sh "export COMPOSE_PROJECT_NAME=\"pp-\${BUILD_NUMBER}\" && docker compose -f docker-compose.yml down -v 2>/dev/null || true"
+                    sh "export COMPOSE_PROJECT_NAME=\"pp-\${BUILD_NUMBER}\" && docker compose -f docker-compose.yml -f docker-compose.ci.yml down -v 2>/dev/null || true"
                     sh "docker system prune -af --filter 'until=24h' 2>/dev/null || true"
                     deleteDir()
                 }
