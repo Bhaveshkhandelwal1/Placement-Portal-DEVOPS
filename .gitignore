@@ -59,9 +59,8 @@ tmp/
 *.tar.gz
 *.zip
 *.dmg
-*.isobackend/.env
-*.zip
-*.zip.1
+# Project-specific sensitive files (never commit)
+backend/.env
 infrastructure/terraform.tfstate
 infrastructure/terraform.tfstate.backup
 infrastructure/.terraform/

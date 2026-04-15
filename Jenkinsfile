@@ -228,7 +228,19 @@ trap cleanup INT TERM
                 sh """
                     set -euxo pipefail
                     export ECR_REGISTRY="${params.AWS_ACCOUNT_ID}.dkr.ecr.${params.AWS_REGION}.amazonaws.com"
-                    aws ecr get-login-password --region "${params.AWS_REGION}" | docker login --username AWS --password-stdin "\${ECR_REGISTRY}"
+                    if command -v aws >/dev/null 2>&1; then
+                      aws ecr get-login-password --region "${params.AWS_REGION}" | docker login --username AWS --password-stdin "\${ECR_REGISTRY}"
+                    else
+                      # Jenkins agent image may not have awscli; run it via docker.
+                      docker run --rm \
+                        -e AWS_ACCESS_KEY_ID \
+                        -e AWS_SECRET_ACCESS_KEY \
+                        -e AWS_SESSION_TOKEN \
+                        -e AWS_DEFAULT_REGION="${params.AWS_REGION}" \
+                        -v "\$HOME/.aws:/root/.aws:ro" \
+                        amazon/aws-cli:2 \
+                        ecr get-login-password --region "${params.AWS_REGION}" | docker login --username AWS --password-stdin "\${ECR_REGISTRY}"
+                    fi
                 """
             }
         }
