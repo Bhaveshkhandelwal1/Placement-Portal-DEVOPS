@@ -86,32 +86,38 @@ pipeline {
                 }
                 withCredentials([string(credentialsId: 'sonarqube-token', variable: 'SONAR_TOKEN')]) {
                     sh """
-                        set -euxo pipefail
-                        ROOT_DIR="\$(pwd)"
-                        test -d "\${ROOT_DIR}/backend/src" && test -d "\${ROOT_DIR}/frontend/src"
+                        bash -lc '
+                          set -euo pipefail
 
-                        # Run scanner locally (NOT in docker) because Jenkins runs in a container
-                        # and docker volume mounts from /var/jenkins_home won't exist on the host daemon.
-                        SCANNER_DIR=".sonar/sonar-scanner"
-                        SCANNER_VERSION="8.0.1.6346"
+                          ROOT_DIR="$(pwd)"
+                          test -d "$ROOT_DIR/backend/src"
+                          test -d "$ROOT_DIR/frontend/src"
 
-                        if [ ! -x "\${SCANNER_DIR}/bin/sonar-scanner" ]; then
-                          mkdir -p "\${SCANNER_DIR}"
-                          curl -fsSL -o /tmp/sonar-scanner.zip \\
-                            "https://binaries.sonarsource.com/Distribution/sonar-scanner-cli/sonar-scanner-cli-\${SCANNER_VERSION}-linux-x64.zip"
-                          unzip -q /tmp/sonar-scanner.zip -d .sonar
-                          mv ".sonar/sonar-scanner-\${SCANNER_VERSION}-linux-x64" "\${SCANNER_DIR}"
-                        fi
+                          # Run scanner locally (NOT in docker) because Jenkins runs in a container
+                          # and docker volume mounts from /var/jenkins_home will not exist on the host daemon.
+                          SCANNER_VERSION="8.0.1.6346"
+                          SCANNER_DIR=".sonar/sonar-scanner"
+                          SCANNER_EXTRACTED_DIR=".sonar/sonar-scanner-cli-${SCANNER_VERSION}-linux-x64"
 
-                        "\${SCANNER_DIR}/bin/sonar-scanner" \\
-                          -Dsonar.projectKey='${params.SONAR_PROJECT_KEY}' \\
-                          -Dsonar.projectName='Placement Portal' \\
-                          -Dsonar.projectBaseDir="\${ROOT_DIR}" \\
-                          -Dsonar.sources=backend/src,frontend/src \\
-                          -Dsonar.host.url='${params.SONAR_HOST_URL}' \\
-                          -Dsonar.token="\${SONAR_TOKEN}" \\
-                          -Dsonar.exclusions="**/node_modules/**,**/dist/**,**/build/**" \\
-                          -Dsonar.scm.disabled=true
+                          if [ ! -x "${SCANNER_DIR}/bin/sonar-scanner" ]; then
+                            rm -rf "${SCANNER_DIR}" "${SCANNER_EXTRACTED_DIR}"
+                            mkdir -p .sonar
+                            curl -fsSL -o /tmp/sonar-scanner.zip \
+                              "https://binaries.sonarsource.com/Distribution/sonar-scanner-cli/sonar-scanner-cli-${SCANNER_VERSION}-linux-x64.zip"
+                            unzip -q /tmp/sonar-scanner.zip -d .sonar
+                            mv "${SCANNER_EXTRACTED_DIR}" "${SCANNER_DIR}"
+                          fi
+
+                          "${SCANNER_DIR}/bin/sonar-scanner" \
+                            -Dsonar.projectKey="${SONAR_PROJECT_KEY}" \
+                            -Dsonar.projectName="Placement Portal" \
+                            -Dsonar.projectBaseDir="$ROOT_DIR" \
+                            -Dsonar.sources="backend/src,frontend/src" \
+                            -Dsonar.host.url="${SONAR_HOST_URL}" \
+                            -Dsonar.token="${SONAR_TOKEN}" \
+                            -Dsonar.exclusions="**/node_modules/**,**/dist/**,**/build/**" \
+                            -Dsonar.scm.disabled=true
+                        '
                     """
                 }
             }
