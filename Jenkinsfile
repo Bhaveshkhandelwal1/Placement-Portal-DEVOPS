@@ -238,7 +238,7 @@ trap cleanup INT TERM
                         -e AWS_SESSION_TOKEN \
                         -e AWS_DEFAULT_REGION="${params.AWS_REGION}" \
                         -v "\$HOME/.aws:/root/.aws:ro" \
-                        public.ecr.aws/aws-cli/aws-cli:2 \
+                        amazon/aws-cli \
                         ecr get-login-password --region "${params.AWS_REGION}" | docker login --username AWS --password-stdin "\${ECR_REGISTRY}"
                     fi
                 """
