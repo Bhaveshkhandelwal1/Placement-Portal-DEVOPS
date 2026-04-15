@@ -96,6 +96,28 @@ ROOT_DIR="$(pwd)"
 test -d "$ROOT_DIR/backend/src"
 test -d "$ROOT_DIR/frontend/src"
 
+# On Linux, host.docker.internal often doesn't resolve inside containers.
+# If the user provided host.docker.internal, rewrite it to the Docker host gateway IP.
+SONAR_URL="${SONAR_HOST_URL}"
+if [[ "${SONAR_URL}" == *"host.docker.internal"* ]]; then
+  if ! curl -fsS --max-time 3 "${SONAR_URL%/}/api/system/status" >/dev/null 2>&1; then
+    GW_IP="$(ip route | awk '/default/ {print $3; exit}')"
+    if [[ -n "${GW_IP}" ]]; then
+      SONAR_URL="${SONAR_URL/host.docker.internal/${GW_IP}}"
+    fi
+  fi
+fi
+
+# Wait briefly for SonarQube to be reachable
+echo "Waiting for SonarQube at: ${SONAR_URL}"
+for i in {1..60}; do
+  if curl -fsS --max-time 3 "${SONAR_URL%/}/api/system/status" >/dev/null 2>&1; then
+    break
+  fi
+  sleep 2
+done
+curl -fsS --max-time 5 "${SONAR_URL%/}/api/system/status" >/dev/null
+
 # Run scanner locally (NOT in docker) because Jenkins runs in a container
 # and docker volume mounts from /var/jenkins_home will not exist on the host daemon.
 SCANNER_VERSION="8.0.1.6346"
@@ -125,7 +147,7 @@ fi
   -Dsonar.projectName="Placement Portal" \
   -Dsonar.projectBaseDir="$ROOT_DIR" \
   -Dsonar.sources="backend/src,frontend/src" \
-  -Dsonar.host.url="${SONAR_HOST_URL}" \
+  -Dsonar.host.url="${SONAR_URL}" \
   -Dsonar.token="${SONAR_TOKEN}" \
   -Dsonar.exclusions="**/node_modules/**,**/dist/**,**/build/**" \
   -Dsonar.scm.disabled=true
