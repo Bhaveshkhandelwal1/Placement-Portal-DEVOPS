@@ -106,7 +106,8 @@ if [ ! -x "${SCANNER_DIR}/bin/sonar-scanner" ]; then
   mkdir -p .sonar
   curl -fsSL -o /tmp/sonar-scanner.zip \
     "https://binaries.sonarsource.com/Distribution/sonar-scanner-cli/sonar-scanner-cli-${SCANNER_VERSION}-linux-x64.zip"
-  unzip -q /tmp/sonar-scanner.zip -d .sonar
+  rm -rf .sonar/sonar-scanner-*linux-x64
+  unzip -oq /tmp/sonar-scanner.zip -d .sonar
   EXTRACTED_DIR=""
   for d in .sonar/sonar-scanner-*linux-x64; do
     if [ -d "$d" ]; then EXTRACTED_DIR="$d"; break; fi
