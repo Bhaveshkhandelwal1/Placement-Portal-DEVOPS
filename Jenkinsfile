@@ -84,7 +84,9 @@ pipeline {
                         error("RUN_SONAR=true but SONAR_HOST_URL is empty. Set the parameter or configure it in Jenkins.")
                     }
                 }
-                withCredentials([string(credentialsId: 'sonarqube-token', variable: 'SONAR_TOKEN')]) {
+                catchError(buildResult: 'UNSTABLE', stageResult: 'FAILURE') {
+                    timeout(time: 20, unit: 'MINUTES') {
+                        withCredentials([string(credentialsId: 'sonarqube-token', variable: 'SONAR_TOKEN')]) {
                     withEnv([
                         "SONAR_HOST_URL=${params.SONAR_HOST_URL}",
                         "SONAR_PROJECT_KEY=${params.SONAR_PROJECT_KEY}",
@@ -162,8 +164,17 @@ fi
   -Dsonar.host.url="${SONAR_URL}" \
   -Dsonar.token="${SONAR_TOKEN}" \
   -Dsonar.exclusions="**/node_modules/**,**/dist/**,**/build/**" \
-  -Dsonar.scm.disabled=true
+  -Dsonar.scm.disabled=true &
+
+SCANNER_PID=$!
+while kill -0 "${SCANNER_PID}" >/dev/null 2>&1; do
+  echo "SonarScanner still running... (pid=${SCANNER_PID})"
+  sleep 30
+done
+wait "${SCANNER_PID}"
 '''
+                    }
+                        }
                     }
                 }
             }
