@@ -100,15 +100,23 @@ test -d "$ROOT_DIR/frontend/src"
 # and docker volume mounts from /var/jenkins_home will not exist on the host daemon.
 SCANNER_VERSION="8.0.1.6346"
 SCANNER_DIR=".sonar/sonar-scanner"
-SCANNER_EXTRACTED_DIR=".sonar/sonar-scanner-cli-${SCANNER_VERSION}-linux-x64"
 
 if [ ! -x "${SCANNER_DIR}/bin/sonar-scanner" ]; then
-  rm -rf "${SCANNER_DIR}" "${SCANNER_EXTRACTED_DIR}"
+  rm -rf "${SCANNER_DIR}"
   mkdir -p .sonar
   curl -fsSL -o /tmp/sonar-scanner.zip \
     "https://binaries.sonarsource.com/Distribution/sonar-scanner-cli/sonar-scanner-cli-${SCANNER_VERSION}-linux-x64.zip"
   unzip -q /tmp/sonar-scanner.zip -d .sonar
-  mv "${SCANNER_EXTRACTED_DIR}" "${SCANNER_DIR}"
+  EXTRACTED_DIR=""
+  for d in .sonar/sonar-scanner-*linux-x64; do
+    if [ -d "$d" ]; then EXTRACTED_DIR="$d"; break; fi
+  done
+  if [ -z "${EXTRACTED_DIR}" ]; then
+    echo "SonarScanner unzip failed: extracted folder not found"
+    ls -la .sonar || true
+    exit 1
+  fi
+  mv "${EXTRACTED_DIR}" "${SCANNER_DIR}"
 fi
 
 "${SCANNER_DIR}/bin/sonar-scanner" \
