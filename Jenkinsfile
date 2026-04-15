@@ -88,15 +88,25 @@ pipeline {
                     sh """
                         set -euxo pipefail
                         ROOT_DIR="\$(pwd)"
-                        test -d "\${ROOT_DIR}/backend" && test -d "\${ROOT_DIR}/frontend"
-                        docker run --rm \\
-                          -v "\${ROOT_DIR}":/usr/src \\
-                          -w /usr/src \\
-                          --add-host=host.docker.internal:host-gateway \\
-                          -e SONAR_SCANNER_OPTS="-Xmx512m" \\
-                          sonarsource/sonar-scanner-cli \\
+                        test -d "\${ROOT_DIR}/backend/src" && test -d "\${ROOT_DIR}/frontend/src"
+
+                        # Run scanner locally (NOT in docker) because Jenkins runs in a container
+                        # and docker volume mounts from /var/jenkins_home won't exist on the host daemon.
+                        SCANNER_DIR=".sonar/sonar-scanner"
+                        SCANNER_VERSION="8.0.1.6346"
+
+                        if [ ! -x "\${SCANNER_DIR}/bin/sonar-scanner" ]; then
+                          mkdir -p "\${SCANNER_DIR}"
+                          curl -fsSL -o /tmp/sonar-scanner.zip \\
+                            "https://binaries.sonarsource.com/Distribution/sonar-scanner-cli/sonar-scanner-cli-\${SCANNER_VERSION}-linux-x64.zip"
+                          unzip -q /tmp/sonar-scanner.zip -d .sonar
+                          mv ".sonar/sonar-scanner-\${SCANNER_VERSION}-linux-x64" "\${SCANNER_DIR}"
+                        fi
+
+                        "\${SCANNER_DIR}/bin/sonar-scanner" \\
                           -Dsonar.projectKey='${params.SONAR_PROJECT_KEY}' \\
                           -Dsonar.projectName='Placement Portal' \\
+                          -Dsonar.projectBaseDir="\${ROOT_DIR}" \\
                           -Dsonar.sources=backend/src,frontend/src \\
                           -Dsonar.host.url='${params.SONAR_HOST_URL}' \\
                           -Dsonar.token="\${SONAR_TOKEN}" \\
