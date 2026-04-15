@@ -3,7 +3,6 @@ pipeline {
 
     environment {
         PATH            = "/usr/local/bin:${env.PATH}"
-        DOCKER_BUILDKIT = '1'
     }
 
     options {
@@ -109,6 +108,7 @@ pipeline {
             steps {
                 sh """
                     set -euxo pipefail
+                    export DOCKER_BUILDKIT=0
                     docker build -t placement-portal-backend:${env.GIT_COMMIT_SHORT} -t placement-portal-backend:latest ./backend
                     docker build -t placement-portal-frontend:${env.GIT_COMMIT_SHORT} -t placement-portal-frontend:latest ./frontend
                 """
