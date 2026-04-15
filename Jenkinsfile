@@ -13,6 +13,7 @@ pipeline {
 
     parameters {
         booleanParam(name: 'RUN_SONAR', defaultValue: false, description: 'Run SonarQube scan (requires credentials configured in Jenkins).')
+        booleanParam(name: 'SONAR_ONLY', defaultValue: false, description: 'Run only SonarQube (skip Docker build/compose and all AWS stages).')
         booleanParam(name: 'DEPLOY_AWS', defaultValue: false, description: 'Deploy to AWS (ECR + SSM). Keep OFF for local/teacher demo.')
         string(name: 'AWS_REGION', defaultValue: 'us-east-1', description: 'AWS region for ECR/SSM (only used if DEPLOY_AWS=true).')
         string(name: 'AWS_ACCOUNT_ID', defaultValue: '', description: 'AWS account ID for ECR registry (only used if DEPLOY_AWS=true).')
@@ -47,6 +48,7 @@ pipeline {
         }
 
         stage('Install, Lint, Test, Build') {
+            when { expression { return !params.SONAR_ONLY } }
             steps {
                 dir('backend') {
                     sh """
@@ -182,6 +184,7 @@ trap cleanup INT TERM
         }
 
         stage('Docker Build (Local)') {
+            when { expression { return !params.SONAR_ONLY } }
             steps {
                 sh """
                     set -euxo pipefail
@@ -193,6 +196,7 @@ trap cleanup INT TERM
         }
 
         stage('Compose Up + Smoke Test') {
+            when { expression { return !params.SONAR_ONLY } }
             steps {
                 sh """
                     set -euxo pipefail
@@ -214,7 +218,7 @@ trap cleanup INT TERM
         }
 
         stage('ECR Login') {
-            when { expression { return params.DEPLOY_AWS } }
+            when { expression { return params.DEPLOY_AWS && !params.SONAR_ONLY } }
             steps {
                 script {
                     if (!params.AWS_ACCOUNT_ID?.trim()) {
@@ -230,7 +234,7 @@ trap cleanup INT TERM
         }
 
         stage('Docker Push to ECR') {
-            when { expression { return params.DEPLOY_AWS } }
+            when { expression { return params.DEPLOY_AWS && !params.SONAR_ONLY } }
             steps {
                 sh """
                     set -euxo pipefail
@@ -252,7 +256,7 @@ trap cleanup INT TERM
         }
 
         stage('Deploy to AWS EC2 (SSM)') {
-            when { expression { return params.DEPLOY_AWS } }
+            when { expression { return params.DEPLOY_AWS && !params.SONAR_ONLY } }
             steps {
                 echo "🚀 Deploying to AWS EC2 instances via SSM..."
                 script {
