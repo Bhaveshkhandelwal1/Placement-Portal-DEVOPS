@@ -217,6 +217,22 @@ trap cleanup INT TERM
             }
         }
 
+        stage('Apply Terraform') {
+            when { expression { return params.DEPLOY_AWS && !params.SONAR_ONLY } }
+            steps {
+                withCredentials([usernamePassword(credentialsId: 'aws-creds', passwordVariable: 'AWS_SECRET_ACCESS_KEY', usernameVariable: 'AWS_ACCESS_KEY_ID')]) {
+                    sh """
+                        set -euxo pipefail
+                        cd infrastructure
+                        chmod +x ./terraform
+                        export AWS_REGION=${params.AWS_REGION}
+                        ./terraform init
+                        ./terraform apply -auto-approve
+                    """
+                }
+            }
+        }
+
         stage('ECR Login') {
             when { expression { return params.DEPLOY_AWS && !params.SONAR_ONLY } }
             steps {

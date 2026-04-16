@@ -1,6 +1,6 @@
 #!/bin/bash
 
-# MongoDB Setup Script for Ubuntu
+# MongoDB Setup Script for Ubuntu 22.04 LTS
 set -e
 
 # Variables
@@ -19,27 +19,32 @@ apt-get upgrade -y
 # Install required packages
 apt-get install -y curl wget gnupg lsb-release
 
-# Install MongoDB from Ubuntu repository (simpler approach)
-apt-get install -y mongodb
+# Install MongoDB from Official Repository for Ubuntu 22.04 (Jammy)
+curl -fsSL https://www.mongodb.org/static/pgp/server-7.0.asc | \
+   sudo gpg -o /usr/share/keyrings/mongodb-server-7.0.gpg \
+   --dearmor
 
-# Start and enable MongoDB
-systemctl start mongodb
-systemctl enable mongodb
+echo "deb [ arch=amd64,arm64 signed-by=/usr/share/keyrings/mongodb-server-7.0.gpg ] https://repo.mongodb.org/apt/ubuntu jammy/mongodb-org/7.0 multiverse" | sudo tee /etc/apt/sources.list.d/mongodb-org-7.0.list
+
+apt-get update -y
+apt-get install -y mongodb-org
+
+# Start and enable MongoDB (service is mongod)
+systemctl start mongod
+systemctl enable mongod
 
 # Wait for MongoDB to start
 sleep 10
 
-# Configure MongoDB for external connections
-sed -i 's/bind_ip = 127.0.0.1/bind_ip = 0.0.0.0/' /etc/mongodb.conf
+# Configure MongoDB for external connections. By default, it's bound to 127.0.0.1
+sed -i 's/bindIp: 127.0.0.1/bindIp: 0.0.0.0/' /etc/mongod.conf
 
 # Restart MongoDB to apply configuration
-systemctl restart mongodb
+systemctl restart mongod
 sleep 10
 
-# Create database and initial data without authentication first
-mongo --eval "
-use placement_db;
-
+# Create database and initial data without authentication first. MongoDB 6+ uses mongosh
+mongosh placement_db --eval "
 // Create admin user with username 'admin' and password 'admin123'
 // Note: Password will be hashed by the backend when the admin logs in for the first time
 db.users.insertOne({
@@ -81,7 +86,7 @@ print('Student credentials: username=1ms22cs001 / password=student123');
 # Create MongoDB status check script
 cat > /usr/local/bin/mongodb-health-check.sh << 'EOF'
 #!/bin/bash
-if mongo --quiet --eval "db.adminCommand('ping')" > /dev/null 2>&1; then
+if mongosh --quiet --eval "db.adminCommand('ping')" > /dev/null 2>&1; then
     echo "MongoDB is healthy"
     exit 0
 else

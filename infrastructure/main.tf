@@ -388,6 +388,7 @@ resource "aws_instance" "mongodb" {
   subnet_id              = aws_subnet.public[0].id
   vpc_security_group_ids = [aws_security_group.mongodb.id]
   key_name               = "placement-portal-key"
+  iam_instance_profile   = aws_iam_instance_profile.app_instance.name
 
   user_data = templatefile("${path.module}/scripts/mongodb-setup.sh", {
     db_username = var.db_username
