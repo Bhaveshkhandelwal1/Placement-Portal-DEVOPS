@@ -19,6 +19,7 @@ pipeline {
         string(name: 'AWS_ACCOUNT_ID', defaultValue: '', description: 'AWS account ID for ECR registry (only used if DEPLOY_AWS=true).')
         string(name: 'SONAR_HOST_URL', defaultValue: '', description: 'SonarQube host URL (only used if RUN_SONAR=true).')
         string(name: 'SONAR_PROJECT_KEY', defaultValue: 'placement-portal', description: 'SonarQube project key (only used if RUN_SONAR=true).')
+        password(name: 'OPENROUTER_API_KEY', defaultValue: '', description: 'OpenRouter API Key for Mock Interview & Resume AI features')
     }
 
     stages {
@@ -345,7 +346,7 @@ trap cleanup INT TERM
                                 "aws ecr get-login-password --region ${AWS_REGION} | docker login --username AWS --password-stdin ${ECR_REGISTRY}",
                                 "docker pull ${IMAGE_BACKEND}:${env.GIT_COMMIT_SHORT}",
                                 "docker rm -f \$(docker ps -aq) 2>/dev/null || true",
-                                "docker run -d --name placement-backend --restart unless-stopped -p 5000:5000 -e PORT=5000 -e NODE_ENV=production -e MONGODB_URI=\\"mongodb://${mongoIp}:27017/placement_db\\" -e JWT_SECRET=\\"\${JWT_SECRET:-change-me}\\" ${IMAGE_BACKEND}:${env.GIT_COMMIT_SHORT}"
+                                "docker run -d --name placement-backend --restart unless-stopped -p 5000:5000 -e PORT=5000 -e NODE_ENV=production -e MONGODB_URI=\\"mongodb://${mongoIp}:27017/placement_db\\" -e JWT_SECRET=\\"\${JWT_SECRET:-change-me}\\" -e OPENROUTER_API_KEY=\\"${params.OPENROUTER_API_KEY}\\" ${IMAGE_BACKEND}:${env.GIT_COMMIT_SHORT}"
                               ]' \
                               --region ${AWS_REGION} \
                               --query 'Command.CommandId' \
