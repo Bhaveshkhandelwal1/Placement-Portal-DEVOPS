@@ -350,7 +350,7 @@ trap cleanup INT TERM
                                 "aws ecr get-login-password --region ${AWS_REGION} | docker login --username AWS --password-stdin ${ECR_REGISTRY}",
                                 "docker pull ${IMAGE_FRONTEND}:${env.GIT_COMMIT_SHORT}",
                                 "docker rm -f \$(docker ps -aq) 2>/dev/null || true",
-                                "docker run -d --name placement-frontend --restart unless-stopped -p 80:8080 ${IMAGE_FRONTEND}:${env.GIT_COMMIT_SHORT}"
+                                "docker run -d --name placement-frontend --restart unless-stopped --add-host backend:127.0.0.1 -p 80:8080 ${IMAGE_FRONTEND}:${env.GIT_COMMIT_SHORT}"
                               ]' \
                               --region ${AWS_REGION} \
                               --query 'Command.CommandId' \
