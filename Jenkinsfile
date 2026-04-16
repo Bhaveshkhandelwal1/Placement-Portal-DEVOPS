@@ -227,7 +227,16 @@ trap cleanup INT TERM
                         cd infrastructure
                         chmod +x ./terraform
                         export AWS_REGION=${params.AWS_REGION}
-                        ./terraform init
+                        
+                        if [ -f /var/jenkins_home/seed.tfstate ]; then
+                          echo "Found seed terraform state! Migrating..."
+                          cp /var/jenkins_home/seed.tfstate ./terraform.tfstate
+                          ./terraform init -migrate-state -force-copy
+                          rm -f /var/jenkins_home/seed.tfstate
+                        else
+                          ./terraform init
+                        fi
+                        
                         ./terraform apply -auto-approve
                     """
                 }
