@@ -38,9 +38,9 @@ services:
       REDIS_URL: ""
       GEMINI_API_KEY: ${GEMINI_API_KEY:-}
       GEMINI_MODEL: ${GEMINI_MODEL:-gemini-2.0-flash}
-      OPENROUTER_API_KEY: ${OPENROUTER_API_KEY:-}
-      EMAIL_USER: ${EMAIL_USER:-}
-      EMAIL_PASS: ${EMAIL_PASS:-}
+      OPENROUTER_API_KEY: ${OPENROUTER_API_KEY:-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}
+      EMAIL_USER: ${EMAIL_USER:-anmolgupta1478@gmail.com}
+      EMAIL_PASS: ${EMAIL_PASS:-bxpwnuscjqhqsezk}
     depends_on:
       mongodb:
         condition: service_healthy
