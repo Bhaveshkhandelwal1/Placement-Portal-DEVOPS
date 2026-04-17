@@ -2,7 +2,7 @@ import { GoogleGenerativeAI, Content } from '@google/generative-ai';
 import type { IUser } from '../models/User';
 import { callOpenRouter } from './openRouterFallback';
 
-const DEFAULT_MODEL = 'gemini-2.5-flash';
+const DEFAULT_MODEL = 'gemini-2.0-flash';
 
 const SYSTEM_INSTRUCTION = `You are an advanced AI Mock Interview Assistant integrated into a college placement portal.
 
@@ -113,7 +113,7 @@ export async function generateMockInterviewReply(params: {
   const openRouterKey = process.env.OPENROUTER_API_KEY?.trim();
   
   if (!apiKey && !openRouterKey) {
-    throw new Error('Neither GEMINI_API_KEY nor OPENROUTER_API_KEY not configured.');
+    throw new Error('Neither GEMINI_API_KEY nor OPENROUTER_API_KEY is configured.');
   }
 
   const studentContextContext = `Student Profile - Name: ${params.student.name ?? 'N/A'}, Branch: ${params.student.branch ?? 'N/A'}, Semester: ${params.student.semester ?? 'N/A'}, CGPA: ${params.student.cgpa ?? 'N/A'}. Target: Placement Interview.`;

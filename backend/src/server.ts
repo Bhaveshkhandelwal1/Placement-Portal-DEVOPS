@@ -1,6 +1,9 @@
+import dotenv from 'dotenv';
+// Load env variables
+dotenv.config();
+
 import express, { Request, Response, NextFunction } from 'express';
 import cors from 'cors';
-import dotenv from 'dotenv';
 import connectDB from './config/db';
 
 // Route imports
@@ -9,9 +12,6 @@ import noticeRoutes from './routes/noticeRoutes';
 import studentRoutes from './routes/studentRoutes';
 import chatRoutes from './routes/chatRoutes';
 import mockInterviewRoutes from './routes/mockInterviewRoutes';
-
-// Load env variables
-dotenv.config();
 
 // Connect to MongoDB
 connectDB();

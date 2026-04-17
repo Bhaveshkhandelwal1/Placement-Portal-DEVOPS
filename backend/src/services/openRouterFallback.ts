@@ -1,7 +1,7 @@
 export async function callOpenRouter(
   systemInstruction: string,
   messages: Array<{ role: 'user' | 'assistant' | 'system', content: string }>,
-  model: string = "google/gemini-2.5-flash"
+  model: string = "google/gemini-2.0-flash"
 ): Promise<string> {
   const apiKey = process.env.OPENROUTER_API_KEY?.trim();
   if (!apiKey) throw new Error("OPENROUTER_API_KEY not configured for fallback.");

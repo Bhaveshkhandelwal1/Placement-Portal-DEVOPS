@@ -20,6 +20,8 @@ pipeline {
         string(name: 'SONAR_HOST_URL', defaultValue: '', description: 'SonarQube host URL (only used if RUN_SONAR=true).')
         string(name: 'SONAR_PROJECT_KEY', defaultValue: 'placement-portal', description: 'SonarQube project key (only used if RUN_SONAR=true).')
         password(name: 'OPENROUTER_API_KEY', defaultValue: '', description: 'OpenRouter API Key for Mock Interview & Resume AI features')
+        password(name: 'GEMINI_API_KEY', defaultValue: '', description: 'Google Gemini API Key')
+        string(name: 'GEMINI_MODEL', defaultValue: 'gemini-2.0-flash', description: 'Google Gemini Model name')
     }
 
     stages {
@@ -354,7 +356,7 @@ trap cleanup INT TERM
                                 "aws ecr get-login-password --region ${AWS_REGION} | docker login --username AWS --password-stdin ${ECR_REGISTRY}",
                                 "docker pull ${IMAGE_BACKEND}:${env.GIT_COMMIT_SHORT}",
                                 "docker rm -f \$(docker ps -aq) 2>/dev/null || true",
-                                "docker run -d --name placement-backend --restart unless-stopped -p 5000:5000 -e PORT=5000 -e NODE_ENV=production -e MONGODB_URI=\\"mongodb://${mongoIp}:27017/placement_db\\" -e JWT_SECRET=\\"\${JWT_SECRET:-change-me}\\" -e OPENROUTER_API_KEY=\\"${params.OPENROUTER_API_KEY}\\" ${IMAGE_BACKEND}:${env.GIT_COMMIT_SHORT}"
+                                "docker run -d --name placement-backend --restart unless-stopped -p 5000:5000 -e PORT=5000 -e NODE_ENV=production -e MONGODB_URI=\\"mongodb://${mongoIp}:27017/placement_db\\" -e JWT_SECRET=\\"\${JWT_SECRET:-change-me}\\" -e GEMINI_API_KEY=\\"${params.GEMINI_API_KEY}\\" -e GEMINI_MODEL=\\"${params.GEMINI_MODEL}\\" -e OPENROUTER_API_KEY=\\"${params.OPENROUTER_API_KEY}\\" ${IMAGE_BACKEND}:${env.GIT_COMMIT_SHORT}"
                               ]' \
                               --region ${AWS_REGION} \
                               --query 'Command.CommandId' \
