@@ -269,34 +269,34 @@ trap cleanup INT TERM
                           set +a
                         fi
 
-                        if [ -n "${OPENROUTER_API_KEY:-}" ]; then
-                          aws ssm put-parameter --name "${SSM_PREFIX}/OPENROUTER_API_KEY" --value "${OPENROUTER_API_KEY}" --type SecureString --overwrite --region "${AWS_REGION}"
+                        if [ -n "\${OPENROUTER_API_KEY:-}" ]; then
+                          aws ssm put-parameter --name "\${SSM_PREFIX}/OPENROUTER_API_KEY" --value "\${OPENROUTER_API_KEY}" --type SecureString --overwrite --region "\${AWS_REGION}"
                         elif [ -n "${params.OPENROUTER_API_KEY}" ]; then
-                          aws ssm put-parameter --name "${SSM_PREFIX}/OPENROUTER_API_KEY" --value "${params.OPENROUTER_API_KEY}" --type SecureString --overwrite --region "${AWS_REGION}"
+                          aws ssm put-parameter --name "\${SSM_PREFIX}/OPENROUTER_API_KEY" --value "${params.OPENROUTER_API_KEY}" --type SecureString --overwrite --region "\${AWS_REGION}"
                         fi
 
-                        if [ -n "${GEMINI_API_KEY:-}" ]; then
-                          aws ssm put-parameter --name "${SSM_PREFIX}/GEMINI_API_KEY" --value "${GEMINI_API_KEY}" --type SecureString --overwrite --region "${AWS_REGION}"
+                        if [ -n "\${GEMINI_API_KEY:-}" ]; then
+                          aws ssm put-parameter --name "\${SSM_PREFIX}/GEMINI_API_KEY" --value "\${GEMINI_API_KEY}" --type SecureString --overwrite --region "\${AWS_REGION}"
                         elif [ -n "${params.GEMINI_API_KEY}" ]; then
-                          aws ssm put-parameter --name "${SSM_PREFIX}/GEMINI_API_KEY" --value "${params.GEMINI_API_KEY}" --type SecureString --overwrite --region "${AWS_REGION}"
+                          aws ssm put-parameter --name "\${SSM_PREFIX}/GEMINI_API_KEY" --value "${params.GEMINI_API_KEY}" --type SecureString --overwrite --region "\${AWS_REGION}"
                         fi
 
-                        if [ -n "${EMAIL_USER:-}" ]; then
-                          aws ssm put-parameter --name "${SSM_PREFIX}/EMAIL_USER" --value "${EMAIL_USER}" --type SecureString --overwrite --region "${AWS_REGION}"
+                        if [ -n "\${EMAIL_USER:-}" ]; then
+                          aws ssm put-parameter --name "\${SSM_PREFIX}/EMAIL_USER" --value "\${EMAIL_USER}" --type SecureString --overwrite --region "\${AWS_REGION}"
                         elif [ -n "${params.EMAIL_USER}" ]; then
-                          aws ssm put-parameter --name "${SSM_PREFIX}/EMAIL_USER" --value "${params.EMAIL_USER}" --type SecureString --overwrite --region "${AWS_REGION}"
+                          aws ssm put-parameter --name "\${SSM_PREFIX}/EMAIL_USER" --value "${params.EMAIL_USER}" --type SecureString --overwrite --region "\${AWS_REGION}"
                         fi
 
-                        if [ -n "${EMAIL_PASS:-}" ]; then
-                          aws ssm put-parameter --name "${SSM_PREFIX}/EMAIL_PASS" --value "${EMAIL_PASS}" --type SecureString --overwrite --region "${AWS_REGION}"
+                        if [ -n "\${EMAIL_PASS:-}" ]; then
+                          aws ssm put-parameter --name "\${SSM_PREFIX}/EMAIL_PASS" --value "\${EMAIL_PASS}" --type SecureString --overwrite --region "\${AWS_REGION}"
                         elif [ -n "${params.EMAIL_PASS}" ]; then
-                          aws ssm put-parameter --name "${SSM_PREFIX}/EMAIL_PASS" --value "${params.EMAIL_PASS}" --type SecureString --overwrite --region "${AWS_REGION}"
+                          aws ssm put-parameter --name "\${SSM_PREFIX}/EMAIL_PASS" --value "${params.EMAIL_PASS}" --type SecureString --overwrite --region "\${AWS_REGION}"
                         fi
 
-                        if [ -n "${JWT_SECRET:-}" ]; then
-                          aws ssm put-parameter --name "${SSM_PREFIX}/JWT_SECRET" --value "${JWT_SECRET}" --type SecureString --overwrite --region "${AWS_REGION}"
+                        if [ -n "\${JWT_SECRET:-}" ]; then
+                          aws ssm put-parameter --name "\${SSM_PREFIX}/JWT_SECRET" --value "\${JWT_SECRET}" --type SecureString --overwrite --region "\${AWS_REGION}"
                         elif [ -n "${params.JWT_SECRET}" ]; then
-                          aws ssm put-parameter --name "${SSM_PREFIX}/JWT_SECRET" --value "${params.JWT_SECRET}" --type SecureString --overwrite --region "${AWS_REGION}"
+                          aws ssm put-parameter --name "\${SSM_PREFIX}/JWT_SECRET" --value "${params.JWT_SECRET}" --type SecureString --overwrite --region "\${AWS_REGION}"
                         fi
 
                         ./terraform init
