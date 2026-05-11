@@ -224,6 +224,7 @@ trap cleanup INT TERM
                     set -euxo pipefail
                     export COMPOSE_PROJECT_NAME="pp-\${BUILD_NUMBER}"
                     export MONGO_HOST_PORT=0
+                    export BACKEND_HOST_PORT=0
                     export FRONTEND_HOST_PORT=0
                     export SONAR_HOST_PORT=0
                     export REGISTRY_HOST_PORT=0
