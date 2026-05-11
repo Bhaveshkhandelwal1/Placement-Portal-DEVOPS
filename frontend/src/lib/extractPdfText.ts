@@ -1,20 +1,41 @@
-import * as pdfjsLib from 'pdfjs-dist';
-import pdfWorker from 'pdfjs-dist/build/pdf.worker.min.mjs?url';
+import legacyPdfWorker from 'pdfjs-dist/legacy/build/pdf.worker.min.mjs?url';
 
 let workerConfigured = false;
 
-function ensurePdfWorker(): void {
+type PdfJsModule = typeof import('pdfjs-dist/legacy/build/pdf.mjs');
+
+function ensurePromiseWithResolvers(): void {
+  if (!Promise.withResolvers) {
+    Promise.withResolvers = function withResolvers<T>() {
+      let resolve!: (value: T | PromiseLike<T>) => void;
+      let reject!: (reason?: unknown) => void;
+      const promise = new Promise<T>((innerResolve, innerReject) => {
+        resolve = innerResolve;
+        reject = innerReject;
+      });
+
+      return { promise, resolve, reject };
+    };
+  }
+}
+
+async function loadPdfJs(): Promise<PdfJsModule> {
+  ensurePromiseWithResolvers();
+  const pdfjsLib = await import('pdfjs-dist/legacy/build/pdf.mjs');
+
   if (!workerConfigured) {
-    pdfjsLib.GlobalWorkerOptions.workerSrc = pdfWorker;
+    pdfjsLib.GlobalWorkerOptions.workerSrc = legacyPdfWorker;
     workerConfigured = true;
   }
+
+  return pdfjsLib;
 }
 
 /**
  * Extract plain text from a PDF file in the browser (best-effort; layout may be imperfect).
  */
 export async function extractTextFromPdf(file: File): Promise<string> {
-  ensurePdfWorker();
+  const pdfjsLib = await loadPdfJs();
   const data = new Uint8Array(await file.arrayBuffer());
   const pdf = await pdfjsLib.getDocument({ data }).promise;
   const parts: string[] = [];
