@@ -147,8 +147,13 @@ export async function generateMockInterviewReply(params: {
         content: (h.parts || []).map(p => p.text).join('')
       }));
       messages.push({ role: 'user', content: params.message });
-      return callOpenRouter(fullSystemInstruction, messages);
+      try {
+        return await callOpenRouter(fullSystemInstruction, messages);
+      } catch (fallbackError) {
+        console.error('OpenRouter fallback also failed:', fallbackError);
+        throw new Error('Our AI Mock Interview service is temporarily unavailable due to configuration issues. Please contact the placement cell or try again later.');
+      }
     }
-    throw error;
+    throw new Error('AI Mock Interview is not configured. Please check your API keys in the backend .env file.');
   }
 }

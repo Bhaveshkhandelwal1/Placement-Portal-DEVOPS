@@ -1,7 +1,7 @@
 export async function callOpenRouter(
   systemInstruction: string,
   messages: Array<{ role: 'user' | 'assistant' | 'system', content: string }>,
-  model: string = "google/gemini-2.0-flash"
+  model: string = "google/gemini-2.0-flash-001"
 ): Promise<string> {
   const apiKey = process.env.OPENROUTER_API_KEY?.trim();
   if (!apiKey) throw new Error("OPENROUTER_API_KEY not configured for fallback.");
@@ -28,7 +28,15 @@ export async function callOpenRouter(
 
   if (!response.ok) {
     const errorBody = await response.text();
-    throw new Error(`OpenRouter API error: ${response.status} - ${errorBody}`);
+    let errorMessage = `OpenRouter API error: ${response.status} - ${errorBody}`;
+    
+    if (response.status === 401) {
+      errorMessage = `OpenRouter Authentication Failed (401): The API key is invalid or the user was not found. Please check your OPENROUTER_API_KEY in .env. Details: ${errorBody}`;
+    } else if (response.status === 403) {
+      errorMessage = `OpenRouter Access Forbidden (403): Your API key might not have permission for this model or has been restricted. Details: ${errorBody}`;
+    }
+    
+    throw new Error(errorMessage);
   }
 
   const json = await response.json();

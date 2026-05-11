@@ -25,6 +25,25 @@ pipeline {
     }
 
     stages {
+        stage('Parameter Summary') {
+            steps {
+                script {
+                    echo """
+Pipeline parameters:
+  RUN_SONAR=${params.RUN_SONAR}
+  SONAR_ONLY=${params.SONAR_ONLY}
+  DEPLOY_AWS=${params.DEPLOY_AWS}
+  AWS_REGION=${params.AWS_REGION}
+  AWS_ACCOUNT_ID=${params.AWS_ACCOUNT_ID ? 'provided' : 'empty'}
+  SONAR_HOST_URL=${params.SONAR_HOST_URL}
+"""
+
+                    if (params.DEPLOY_AWS && !params.AWS_ACCOUNT_ID?.trim()) {
+                        error("DEPLOY_AWS=true but AWS_ACCOUNT_ID is empty.")
+                    }
+                }
+            }
+        }
 
         stage('Checkout') {
             steps {
@@ -51,7 +70,7 @@ pipeline {
         }
 
         stage('Install, Lint, Test, Build') {
-            when { expression { return !params.SONAR_ONLY } }
+            when { expression { return params.DEPLOY_AWS || !params.SONAR_ONLY } }
             steps {
                 dir('backend') {
                     sh """
@@ -187,7 +206,7 @@ trap cleanup INT TERM
         }
 
         stage('Docker Build (Local)') {
-            when { expression { return !params.SONAR_ONLY } }
+            when { expression { return params.DEPLOY_AWS || !params.SONAR_ONLY } }
             steps {
                 sh """
                     set -euxo pipefail
@@ -199,7 +218,7 @@ trap cleanup INT TERM
         }
 
         stage('Compose Up + Smoke Test') {
-            when { expression { return !params.SONAR_ONLY } }
+            when { expression { return params.DEPLOY_AWS || !params.SONAR_ONLY } }
             steps {
                 sh """
                     set -euxo pipefail
@@ -221,7 +240,7 @@ trap cleanup INT TERM
         }
 
         stage('Apply Terraform') {
-            when { expression { return params.DEPLOY_AWS && !params.SONAR_ONLY } }
+            when { expression { return params.DEPLOY_AWS } }
             steps {
                 withCredentials([usernamePassword(credentialsId: 'aws-creds', passwordVariable: 'AWS_SECRET_ACCESS_KEY', usernameVariable: 'AWS_ACCESS_KEY_ID')]) {
                     sh """
@@ -245,7 +264,7 @@ trap cleanup INT TERM
         }
 
         stage('ECR Login') {
-            when { expression { return params.DEPLOY_AWS && !params.SONAR_ONLY } }
+            when { expression { return params.DEPLOY_AWS } }
             steps {
                 script {
                     if (!params.AWS_ACCOUNT_ID?.trim()) {
@@ -272,7 +291,7 @@ trap cleanup INT TERM
         }
 
         stage('Docker Push to ECR') {
-            when { expression { return params.DEPLOY_AWS && !params.SONAR_ONLY } }
+            when { expression { return params.DEPLOY_AWS } }
             steps {
                 sh """
                     set -euxo pipefail
@@ -294,7 +313,7 @@ trap cleanup INT TERM
         }
 
         stage('Deploy to AWS EC2 (SSM)') {
-            when { expression { return params.DEPLOY_AWS && !params.SONAR_ONLY } }
+            when { expression { return params.DEPLOY_AWS } }
             steps {
                 withCredentials([usernamePassword(credentialsId: 'aws-creds', passwordVariable: 'AWS_SECRET_ACCESS_KEY', usernameVariable: 'AWS_ACCESS_KEY_ID')]) {
                     echo "🚀 Deploying to AWS EC2 instances via SSM..."

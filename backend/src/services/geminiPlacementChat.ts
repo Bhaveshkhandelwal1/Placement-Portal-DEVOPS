@@ -136,8 +136,13 @@ export async function generateGeminiPlacementReply(params: {
   } catch (error) {
     if (openRouterKey) {
       console.warn('Falling back to OpenRouter for Gemini Placement Reply:', error);
-      return callOpenRouter(SYSTEM_INSTRUCTION, [{ role: 'user', content: userPayload }]);
+      try {
+        return await callOpenRouter(SYSTEM_INSTRUCTION, [{ role: 'user', content: userPayload }]);
+      } catch (fallbackError) {
+        console.error('OpenRouter fallback also failed:', fallbackError);
+        throw new Error('Our AI Student Assistant is temporarily unavailable. Please check back later or contact support.');
+      }
     }
-    throw error;
+    throw new Error('AI Student Assistant is not configured. Please check your API keys in the backend .env file.');
   }
 }

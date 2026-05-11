@@ -114,8 +114,13 @@ export async function generateResumeAnalysisReport(params: {
   } catch (error) {
     if (openRouterKey) {
       console.warn('Falling back to OpenRouter for Resume Analysis:', error);
-      return callOpenRouter(SYSTEM_INSTRUCTION, [{ role: 'user', content: userPayload }]);
+      try {
+        return await callOpenRouter(SYSTEM_INSTRUCTION, [{ role: 'user', content: userPayload }]);
+      } catch (fallbackError) {
+        console.error('OpenRouter fallback also failed:', fallbackError);
+        throw new Error('Our AI Resume Analyzer is temporarily unavailable. Please try again later or contact the placement cell.');
+      }
     }
-    throw error;
+    throw new Error('AI Resume analysis is not configured. Please check your API keys in the backend .env file.');
   }
 }

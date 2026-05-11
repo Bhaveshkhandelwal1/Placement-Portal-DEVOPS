@@ -119,6 +119,12 @@ kubectl create secret generic app-secret \
   --from-literal=jwt-secret='your-super-secure-jwt-secret-key-here-min-32-chars' \
   --dry-run=client -o yaml | kubectl apply -f -
 
+# Update AI API secrets (Optional but required for AI features)
+kubectl create secret generic ai-secret \
+  --from-literal=gemini-api-key='your-google-gemini-key' \
+  --from-literal=openrouter-api-key='your-openrouter-key' \
+  --dry-run=client -o yaml | kubectl apply -f -
+
 # Update cache secret if using Redis
 kubectl create secret generic cache-secret \
   --from-literal=redis-url='redis://your-redis-host:6379' \
