@@ -10,6 +10,22 @@ const generateToken = (id: string, role: UserRole): string => {
   });
 };
 
+const isBcryptHash = (value: string): boolean => /^\$2[aby]\$\d{2}\$/.test(value);
+
+const passwordMatches = async (user: IUser, password: string): Promise<boolean> => {
+  if (await user.comparePassword(password)) {
+    return true;
+  }
+
+  if (!isBcryptHash(user.password) && user.password === password) {
+    user.password = password;
+    await user.save();
+    return true;
+  }
+
+  return false;
+};
+
 // @desc    Register student
 // @route   POST /api/auth/register
 // @access  Public
@@ -154,7 +170,7 @@ export const loginUser = async (req: Request, res: Response): Promise<void> => {
           });
           return;
         }
-      } else if (await admin.comparePassword(password)) {
+      } else if (await passwordMatches(admin, password)) {
         // If admin exists and passwords match
         const token = generateToken(admin._id.toString(), admin.role);
 
@@ -173,7 +189,7 @@ export const loginUser = async (req: Request, res: Response): Promise<void> => {
       // Handle student login with USN
       const student = await User.findOne({ usn: username });
 
-      if (student && (await student.comparePassword(password))) {
+      if (student && (await passwordMatches(student, password))) {
         const token = generateToken(student._id.toString(), student.role);
 
         res.status(200).json({

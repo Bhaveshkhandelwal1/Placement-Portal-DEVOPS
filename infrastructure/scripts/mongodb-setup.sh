@@ -46,11 +46,10 @@ sleep 10
 # Create database and initial data without authentication first. MongoDB 6+ uses mongosh
 mongosh placement_db --eval "
 // Create admin user with username 'admin' and password 'admin123'
-// Note: Password will be hashed by the backend when the admin logs in for the first time
 db.users.insertOne({
   username: 'admin',
   email: 'admin@placementportal.com',
-  password: 'admin123',
+  password: '\$2b\$10\$nSzI5k5rWNhzm3USoL8Bv.G8Wjd9EVshNmHlCUkhQ0Nlsh7ysU8KO',
   role: 'admin',
   name: 'Admin User',
   createdAt: new Date()
@@ -60,7 +59,7 @@ db.users.insertOne({
 db.users.insertOne({
   usn: '1ms22cs001',
   email: 'student@placement.com',
-  password: 'student123',
+  password: '\$2b\$10\$DotMqfRI1TXQRk/dJ6HVuuPt.Bg3rdYoeIO9X2ClXjWTuMXL5Ltfi',
   role: 'student',
   name: 'Test Student',
   semester: 6,
