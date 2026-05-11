@@ -362,7 +362,7 @@ trap cleanup INT TERM
                     echo "📍 MongoDB IP: ${mongoIp}"
 
                     def geminiApiKey = env.GEMINI_API_KEY?.trim() ?: ''
-                    def openRouterApiKey = env.OPENROUTER_API_KEY?.trim() ?: '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'
+                    def openRouterApiKey = env.OPENROUTER_API_KEY?.trim() ?: ''
                     def geminiModel = params.GEMINI_MODEL?.trim() ?: 'gemini-2.0-flash'
 
                     if (!backendInstanceId || backendInstanceId == 'None' || !frontendInstanceId || frontendInstanceId == 'None') {
