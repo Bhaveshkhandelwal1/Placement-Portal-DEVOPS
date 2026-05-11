@@ -4,10 +4,18 @@
 set -e
 
 # Variables
-AWS_REGION="${aws_region}"
+export AWS_REGION="${aws_region}"
+export AWS_DEFAULT_REGION="${aws_region}"
+PROJECT_NAME="${project_name}"
+SSM_PREFIX="/${project_name}"
 ECR_REGISTRY="${ecr_registry}"
 MONGODB_URI="${mongodb_uri}"
 JWT_SECRET="${jwt_secret}"
+
+get_ssm_parameter() {
+  local name="$1"
+  aws ssm get-parameter --name "$name" --with-decryption --query 'Parameter.Value' --output text 2>/dev/null || true
+}
 
 # Update system
 apt-get update -y
@@ -30,6 +38,22 @@ curl "https://awscli.amazonaws.com/awscli-exe-linux-x86_64.zip" -o "awscliv2.zip
 unzip awscliv2.zip
 ./aws/install
 
+# Read secrets from SSM Parameter Store
+GEMINI_API_KEY="$(get_ssm_parameter "${SSM_PREFIX}/GEMINI_API_KEY")"
+OPENROUTER_API_KEY="$(get_ssm_parameter "${SSM_PREFIX}/OPENROUTER_API_KEY")"
+EMAIL_USER="$(get_ssm_parameter "${SSM_PREFIX}/EMAIL_USER")"
+EMAIL_PASS="$(get_ssm_parameter "${SSM_PREFIX}/EMAIL_PASS")"
+FETCHED_JWT_SECRET="$(get_ssm_parameter "${SSM_PREFIX}/JWT_SECRET")"
+
+if [ -n "$FETCHED_JWT_SECRET" ]; then
+  JWT_SECRET="$FETCHED_JWT_SECRET"
+fi
+
+if [ -z "$JWT_SECRET" ]; then
+  echo "ERROR: JWT_SECRET is required and was not found in SSM."
+  exit 1
+fi
+
 # Install SSM Agent (for remote command execution)
 snap install amazon-ssm-agent --classic
 systemctl enable snap.amazon-ssm-agent.amazon-ssm-agent.service
@@ -50,6 +74,11 @@ PORT=5000
 MONGODB_URI=$MONGODB_URI
 JWT_SECRET=$JWT_SECRET
 AWS_REGION=$AWS_REGION
+GEMINI_API_KEY=$GEMINI_API_KEY
+GEMINI_MODEL=${GEMINI_MODEL:-gemini-2.0-flash}
+OPENROUTER_API_KEY=$OPENROUTER_API_KEY
+EMAIL_USER=$EMAIL_USER
+EMAIL_PASS=$EMAIL_PASS
 EOF
 
 # Create Docker Compose file

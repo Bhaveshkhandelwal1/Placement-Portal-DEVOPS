@@ -21,6 +21,9 @@ pipeline {
         string(name: 'SONAR_PROJECT_KEY', defaultValue: 'placement-portal', description: 'SonarQube project key (only used if RUN_SONAR=true).')
         password(name: 'OPENROUTER_API_KEY', defaultValue: '', description: 'OpenRouter API Key for Mock Interview & Resume AI features')
         password(name: 'GEMINI_API_KEY', defaultValue: '', description: 'Google Gemini API Key')
+        password(name: 'EMAIL_USER', defaultValue: '', description: 'Email username for backend notifications')
+        password(name: 'EMAIL_PASS', defaultValue: '', description: 'Email password for backend notifications')
+        password(name: 'JWT_SECRET', defaultValue: '', description: 'JWT secret for backend authentication')
         string(name: 'GEMINI_MODEL', defaultValue: 'gemini-2.0-flash', description: 'Google Gemini Model name')
     }
 
@@ -249,7 +252,36 @@ trap cleanup INT TERM
                         cd infrastructure
                         chmod +x ./terraform
                         export AWS_REGION=${params.AWS_REGION}
-                        
+                        export SSM_PREFIX="/placement-portal"
+
+                        if ! command -v aws >/dev/null 2>&1; then
+                          echo "Installing AWS CLI for Terraform and SSM writes..."
+                          curl -qfsSL "https://awscli.amazonaws.com/awscli-exe-linux-x86_64.zip" -o "awscliv2.zip"
+                          unzip -oq awscliv2.zip
+                          ./aws/install -i /var/jenkins_home/aws-cli -b /var/jenkins_home/bin || true
+                          rm -rf awscliv2.zip aws
+                        fi
+
+                        if [ -n "${params.OPENROUTER_API_KEY}" ]; then
+                          aws ssm put-parameter --name "${SSM_PREFIX}/OPENROUTER_API_KEY" --value "${params.OPENROUTER_API_KEY}" --type SecureString --overwrite --region "${AWS_REGION}"
+                        fi
+
+                        if [ -n "${params.GEMINI_API_KEY}" ]; then
+                          aws ssm put-parameter --name "${SSM_PREFIX}/GEMINI_API_KEY" --value "${params.GEMINI_API_KEY}" --type SecureString --overwrite --region "${AWS_REGION}"
+                        fi
+
+                        if [ -n "${params.EMAIL_USER}" ]; then
+                          aws ssm put-parameter --name "${SSM_PREFIX}/EMAIL_USER" --value "${params.EMAIL_USER}" --type SecureString --overwrite --region "${AWS_REGION}"
+                        fi
+
+                        if [ -n "${params.EMAIL_PASS}" ]; then
+                          aws ssm put-parameter --name "${SSM_PREFIX}/EMAIL_PASS" --value "${params.EMAIL_PASS}" --type SecureString --overwrite --region "${AWS_REGION}"
+                        fi
+
+                        if [ -n "${params.JWT_SECRET}" ]; then
+                          aws ssm put-parameter --name "${SSM_PREFIX}/JWT_SECRET" --value "${params.JWT_SECRET}" --type SecureString --overwrite --region "${AWS_REGION}"
+                        fi
+
                         ./terraform init
                         
                         if [ -f /var/jenkins_home/seed.tfstate ]; then
