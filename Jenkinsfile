@@ -262,23 +262,40 @@ trap cleanup INT TERM
                           rm -rf awscliv2.zip aws
                         fi
 
-                        if [ -n "${params.OPENROUTER_API_KEY}" ]; then
+                        if [ -f ../backend/.env ]; then
+                          echo "Loading backend secret values from ../backend/.env"
+                          set -a
+                          . ../backend/.env
+                          set +a
+                        fi
+
+                        if [ -n "${OPENROUTER_API_KEY:-}" ]; then
+                          aws ssm put-parameter --name "${SSM_PREFIX}/OPENROUTER_API_KEY" --value "${OPENROUTER_API_KEY}" --type SecureString --overwrite --region "${AWS_REGION}"
+                        elif [ -n "${params.OPENROUTER_API_KEY}" ]; then
                           aws ssm put-parameter --name "${SSM_PREFIX}/OPENROUTER_API_KEY" --value "${params.OPENROUTER_API_KEY}" --type SecureString --overwrite --region "${AWS_REGION}"
                         fi
 
-                        if [ -n "${params.GEMINI_API_KEY}" ]; then
+                        if [ -n "${GEMINI_API_KEY:-}" ]; then
+                          aws ssm put-parameter --name "${SSM_PREFIX}/GEMINI_API_KEY" --value "${GEMINI_API_KEY}" --type SecureString --overwrite --region "${AWS_REGION}"
+                        elif [ -n "${params.GEMINI_API_KEY}" ]; then
                           aws ssm put-parameter --name "${SSM_PREFIX}/GEMINI_API_KEY" --value "${params.GEMINI_API_KEY}" --type SecureString --overwrite --region "${AWS_REGION}"
                         fi
 
-                        if [ -n "${params.EMAIL_USER}" ]; then
+                        if [ -n "${EMAIL_USER:-}" ]; then
+                          aws ssm put-parameter --name "${SSM_PREFIX}/EMAIL_USER" --value "${EMAIL_USER}" --type SecureString --overwrite --region "${AWS_REGION}"
+                        elif [ -n "${params.EMAIL_USER}" ]; then
                           aws ssm put-parameter --name "${SSM_PREFIX}/EMAIL_USER" --value "${params.EMAIL_USER}" --type SecureString --overwrite --region "${AWS_REGION}"
                         fi
 
-                        if [ -n "${params.EMAIL_PASS}" ]; then
+                        if [ -n "${EMAIL_PASS:-}" ]; then
+                          aws ssm put-parameter --name "${SSM_PREFIX}/EMAIL_PASS" --value "${EMAIL_PASS}" --type SecureString --overwrite --region "${AWS_REGION}"
+                        elif [ -n "${params.EMAIL_PASS}" ]; then
                           aws ssm put-parameter --name "${SSM_PREFIX}/EMAIL_PASS" --value "${params.EMAIL_PASS}" --type SecureString --overwrite --region "${AWS_REGION}"
                         fi
 
-                        if [ -n "${params.JWT_SECRET}" ]; then
+                        if [ -n "${JWT_SECRET:-}" ]; then
+                          aws ssm put-parameter --name "${SSM_PREFIX}/JWT_SECRET" --value "${JWT_SECRET}" --type SecureString --overwrite --region "${AWS_REGION}"
+                        elif [ -n "${params.JWT_SECRET}" ]; then
                           aws ssm put-parameter --name "${SSM_PREFIX}/JWT_SECRET" --value "${params.JWT_SECRET}" --type SecureString --overwrite --region "${AWS_REGION}"
                         fi
 
