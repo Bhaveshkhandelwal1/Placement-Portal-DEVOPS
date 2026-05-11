@@ -361,8 +361,8 @@ trap cleanup INT TERM
                     echo "📍 Frontend instance: ${frontendInstanceId}"
                     echo "📍 MongoDB IP: ${mongoIp}"
 
-                    def geminiApiKey = params.GEMINI_API_KEY?.getPlainText()?.trim() ?: ''
-                    def openRouterApiKey = params.OPENROUTER_API_KEY?.getPlainText()?.trim() ?: ''
+                    def geminiApiKey = env.GEMINI_API_KEY?.trim() ?: ''
+                    def openRouterApiKey = env.OPENROUTER_API_KEY?.trim() ?: ''
                     def geminiModel = params.GEMINI_MODEL?.trim() ?: 'gemini-2.0-flash'
 
                     if (!backendInstanceId || backendInstanceId == 'None' || !frontendInstanceId || frontendInstanceId == 'None') {
