@@ -39,11 +39,11 @@ unzip awscliv2.zip
 ./aws/install
 
 # Read secrets from SSM Parameter Store
-GEMINI_API_KEY="$(get_ssm_parameter "${SSM_PREFIX}/GEMINI_API_KEY")"
-OPENROUTER_API_KEY="$(get_ssm_parameter "${SSM_PREFIX}/OPENROUTER_API_KEY")"
-EMAIL_USER="$(get_ssm_parameter "${SSM_PREFIX}/EMAIL_USER")"
-EMAIL_PASS="$(get_ssm_parameter "${SSM_PREFIX}/EMAIL_PASS")"
-FETCHED_JWT_SECRET="$(get_ssm_parameter "${SSM_PREFIX}/JWT_SECRET")"
+GEMINI_API_KEY="$(get_ssm_parameter "$${SSM_PREFIX}/GEMINI_API_KEY")"
+OPENROUTER_API_KEY="$(get_ssm_parameter "$${SSM_PREFIX}/OPENROUTER_API_KEY")"
+EMAIL_USER="$(get_ssm_parameter "$${SSM_PREFIX}/EMAIL_USER")"
+EMAIL_PASS="$(get_ssm_parameter "$${SSM_PREFIX}/EMAIL_PASS")"
+FETCHED_JWT_SECRET="$(get_ssm_parameter "$${SSM_PREFIX}/JWT_SECRET")"
 
 if [ -n "$FETCHED_JWT_SECRET" ]; then
   JWT_SECRET="$FETCHED_JWT_SECRET"
