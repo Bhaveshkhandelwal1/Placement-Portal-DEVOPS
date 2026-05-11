@@ -1,5 +1,3 @@
-version: "3.9"
-
 services:
   # ─── MongoDB ────────────────────────────────────────────────────────────────
   mongodb:
@@ -44,6 +42,8 @@ services:
     depends_on:
       mongodb:
         condition: service_healthy
+    ports:
+      - "${BACKEND_HOST_PORT:-5000}:5000"
     networks:
       - placement-net
     healthcheck:
@@ -100,6 +100,55 @@ services:
     networks:
       - placement-net
 
+  # ─── Prometheus (Metrics Collection) ───────────────────────────────────────
+  prometheus:
+    image: prom/prometheus:v2.52.0
+    restart: unless-stopped
+    command:
+      - "--config.file=/etc/prometheus/prometheus.yml"
+      - "--storage.tsdb.path=/prometheus"
+      - "--web.enable-lifecycle"
+    ports:
+      - "${PROMETHEUS_HOST_PORT:-9091}:9090"
+    volumes:
+      - ./monitoring/prometheus/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - prometheus_data:/prometheus
+    depends_on:
+      backend:
+        condition: service_healthy
+    networks:
+      - placement-net
+
+  # ─── Grafana (Monitoring Dashboards) ───────────────────────────────────────
+  grafana:
+    image: grafana/grafana:10.4.1
+    restart: unless-stopped
+    environment:
+      GF_SECURITY_ADMIN_USER: ${GRAFANA_ADMIN_USER:-admin}
+      GF_SECURITY_ADMIN_PASSWORD: ${GRAFANA_ADMIN_PASSWORD:-admin123}
+      GF_USERS_ALLOW_SIGN_UP: "false"
+    ports:
+      - "${GRAFANA_HOST_PORT:-3001}:3000"
+    volumes:
+      - grafana_data:/var/lib/grafana
+      - ./monitoring/grafana/provisioning:/etc/grafana/provisioning:ro
+      - ./monitoring/grafana/dashboards:/var/lib/grafana/dashboards:ro
+    depends_on:
+      - prometheus
+    networks:
+      - placement-net
+
+  # ─── Node Exporter (Host/System Metrics) ───────────────────────────────────
+  node-exporter:
+    image: prom/node-exporter:v1.8.1
+    restart: unless-stopped
+    command:
+      - "--path.rootfs=/host"
+    volumes:
+      - /:/host:ro,rslave
+    networks:
+      - placement-net
+
 # ─── Volumes & Networks ──────────────────────────────────────────────────────
 volumes:
   mongo_data:
@@ -111,6 +160,10 @@ volumes:
   sonarqube_extensions:
     driver: local
   registry_data:
+    driver: local
+  prometheus_data:
+    driver: local
+  grafana_data:
     driver: local
 
 networks:

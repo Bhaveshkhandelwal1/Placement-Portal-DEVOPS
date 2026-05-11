@@ -5,6 +5,7 @@ dotenv.config();
 import express, { Request, Response, NextFunction } from 'express';
 import cors from 'cors';
 import connectDB from './config/db';
+import { getMetrics, metricsContentType, metricsMiddleware } from './middleware/metrics';
 
 // Route imports
 import authRoutes from './routes/authRoutes';
@@ -21,6 +22,7 @@ const app = express();
 
 // Middleware
 app.use(express.json());
+app.use(metricsMiddleware);
 
 // CORS configuration
 const corsOptions = {
@@ -46,6 +48,16 @@ app.use('/api/mock-interview', mockInterviewRoutes);
 // API Health check endpoint
 app.get('/api/health', (req: Request, res: Response) => {
   res.status(200).json({ status: 'healthy', timestamp: new Date().toISOString() });
+});
+
+// Prometheus metrics endpoint
+app.get('/api/metrics', async (req: Request, res: Response, next: NextFunction) => {
+  try {
+    res.set('Content-Type', metricsContentType);
+    res.send(await getMetrics());
+  } catch (error) {
+    next(error);
+  }
 });
 
 // Basic route
