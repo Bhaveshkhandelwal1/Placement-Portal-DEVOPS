@@ -439,12 +439,13 @@ trap cleanup INT TERM
                         echo "No repo-root .env found at ${rootEnvPath}; relying on Jenkins params/env."
                     }
 
-                    def geminiApiKey = params.GEMINI_API_KEY?.trim() ?: env.GEMINI_API_KEY?.trim() ?: rootEnv['GEMINI_API_KEY']?.trim() ?: ''
-                    def openRouterApiKey = params.OPENROUTER_API_KEY?.trim() ?: env.OPENROUTER_API_KEY?.trim() ?: rootEnv['OPENROUTER_API_KEY']?.trim() ?: ''
-                    def geminiModel = params.GEMINI_MODEL?.trim() ?: rootEnv['GEMINI_MODEL']?.trim() ?: 'gemini-2.0-flash'
-                    def emailUser = params.EMAIL_USER?.trim() ?: env.EMAIL_USER?.trim() ?: rootEnv['EMAIL_USER']?.trim() ?: ''
-                    def emailPass = params.EMAIL_PASS?.trim() ?: env.EMAIL_PASS?.trim() ?: rootEnv['EMAIL_PASS']?.trim() ?: ''
-                    def jwtSecret = params.JWT_SECRET?.trim() ?: env.JWT_SECRET?.trim() ?: rootEnv['JWT_SECRET']?.trim() ?: 'change-me'
+                    def trimValue = { value -> value == null ? '' : "${value}".trim() }
+                    def geminiApiKey = trimValue(params.GEMINI_API_KEY) ?: trimValue(env.GEMINI_API_KEY) ?: trimValue(rootEnv['GEMINI_API_KEY'])
+                    def openRouterApiKey = trimValue(params.OPENROUTER_API_KEY) ?: trimValue(env.OPENROUTER_API_KEY) ?: trimValue(rootEnv['OPENROUTER_API_KEY'])
+                    def geminiModel = trimValue(params.GEMINI_MODEL) ?: trimValue(rootEnv['GEMINI_MODEL']) ?: 'gemini-2.0-flash'
+                    def emailUser = trimValue(params.EMAIL_USER) ?: trimValue(env.EMAIL_USER) ?: trimValue(rootEnv['EMAIL_USER'])
+                    def emailPass = trimValue(params.EMAIL_PASS) ?: trimValue(env.EMAIL_PASS) ?: trimValue(rootEnv['EMAIL_PASS'])
+                    def jwtSecret = trimValue(params.JWT_SECRET) ?: trimValue(env.JWT_SECRET) ?: trimValue(rootEnv['JWT_SECRET']) ?: 'change-me'
 
                     if (!backendInstanceId || backendInstanceId == 'None' || !frontendInstanceId || frontendInstanceId == 'None') {
                         error("EC2 instances not running. Run: cd infrastructure && terraform apply -auto-approve")
