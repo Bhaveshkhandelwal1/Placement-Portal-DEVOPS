@@ -411,12 +411,21 @@ trap cleanup INT TERM
                     echo "📍 Frontend instance: ${frontendInstanceId}"
                     echo "📍 MongoDB IP: ${mongoIp}"
 
-                    def geminiApiKey = params.GEMINI_API_KEY?.trim() ?: env.GEMINI_API_KEY?.trim() ?: ''
-                    def openRouterApiKey = params.OPENROUTER_API_KEY?.trim() ?: env.OPENROUTER_API_KEY?.trim() ?: ''
-                    def geminiModel = params.GEMINI_MODEL?.trim() ?: 'gemini-2.0-flash'
-                    def emailUser = params.EMAIL_USER?.trim() ?: env.EMAIL_USER?.trim() ?: ''   
-                    def emailPass = params.EMAIL_PASS?.trim() ?: env.EMAIL_PASS?.trim() ?: ''   
-                    def jwtSecret = params.JWT_SECRET?.trim() ?: env.JWT_SECRET?.trim() ?: 'change-me'  
+                    def secretParam = { name ->
+                        def value = params[name]
+                        return value == null ? '' : value.toString().trim()
+                    }
+                    def envValue = { name ->
+                        def value = env[name]
+                        return value == null ? '' : value.toString().trim()
+                    }
+
+                    def geminiApiKey = secretParam('GEMINI_API_KEY') ?: envValue('GEMINI_API_KEY')
+                    def openRouterApiKey = secretParam('OPENROUTER_API_KEY') ?: envValue('OPENROUTER_API_KEY')
+                    def geminiModel = params.GEMINI_MODEL?.toString()?.trim() ?: 'gemini-2.0-flash'
+                    def emailUser = secretParam('EMAIL_USER') ?: envValue('EMAIL_USER')
+                    def emailPass = secretParam('EMAIL_PASS') ?: envValue('EMAIL_PASS')
+                    def jwtSecret = secretParam('JWT_SECRET') ?: envValue('JWT_SECRET') ?: 'change-me'
 
                     if (!backendInstanceId || backendInstanceId == 'None' || !frontendInstanceId || frontendInstanceId == 'None') {
                         error("EC2 instances not running. Run: cd infrastructure && terraform apply -auto-approve")
