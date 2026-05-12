@@ -411,21 +411,16 @@ trap cleanup INT TERM
                     echo "📍 Frontend instance: ${frontendInstanceId}"
                     echo "📍 MongoDB IP: ${mongoIp}"
 
-                    def secretParam = { name ->
-                        def value = params[name]
-                        return value == null ? '' : value.toString().trim()
-                    }
-                    def envValue = { name ->
-                        def value = env[name]
+                    def trimValue = { value ->
                         return value == null ? '' : value.toString().trim()
                     }
 
-                    def geminiApiKey = secretParam('GEMINI_API_KEY') ?: envValue('GEMINI_API_KEY')
-                    def openRouterApiKey = secretParam('OPENROUTER_API_KEY') ?: envValue('OPENROUTER_API_KEY')
-                    def geminiModel = params.GEMINI_MODEL?.toString()?.trim() ?: 'gemini-2.0-flash'
-                    def emailUser = secretParam('EMAIL_USER') ?: envValue('EMAIL_USER')
-                    def emailPass = secretParam('EMAIL_PASS') ?: envValue('EMAIL_PASS')
-                    def jwtSecret = secretParam('JWT_SECRET') ?: envValue('JWT_SECRET') ?: 'change-me'
+                    def geminiApiKey = trimValue(params.GEMINI_API_KEY) ?: trimValue(env.GEMINI_API_KEY)
+                    def openRouterApiKey = trimValue(params.OPENROUTER_API_KEY) ?: trimValue(env.OPENROUTER_API_KEY)
+                    def geminiModel = trimValue(params.GEMINI_MODEL) ?: 'gemini-2.0-flash'
+                    def emailUser = trimValue(params.EMAIL_USER) ?: trimValue(env.EMAIL_USER)
+                    def emailPass = trimValue(params.EMAIL_PASS) ?: trimValue(env.EMAIL_PASS)
+                    def jwtSecret = trimValue(params.JWT_SECRET) ?: trimValue(env.JWT_SECRET) ?: 'change-me'
 
                     if (!backendInstanceId || backendInstanceId == 'None' || !frontendInstanceId || frontendInstanceId == 'None') {
                         error("EC2 instances not running. Run: cd infrastructure && terraform apply -auto-approve")
