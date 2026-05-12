@@ -19,11 +19,8 @@ pipeline {
         string(name: 'AWS_ACCOUNT_ID', defaultValue: '', description: 'AWS account ID for ECR registry (only used if DEPLOY_AWS=true).')
         string(name: 'SONAR_HOST_URL', defaultValue: '', description: 'SonarQube host URL (only used if RUN_SONAR=true).')
         string(name: 'SONAR_PROJECT_KEY', defaultValue: 'placement-portal', description: 'SonarQube project key (only used if RUN_SONAR=true).')
-        password(name: 'OPENROUTER_API_KEY', defaultValue: '', description: 'OpenRouter API Key for Mock Interview & Resume AI features')
-        password(name: 'GEMINI_API_KEY', defaultValue: '', description: 'Google Gemini API Key')
-        password(name: 'EMAIL_USER', defaultValue: '', description: 'Email username for backend notifications')
-        password(name: 'EMAIL_PASS', defaultValue: '', description: 'Email password for backend notifications')
-        password(name: 'JWT_SECRET', defaultValue: '', description: 'JWT secret for backend authentication')
+        // Secrets are stored in Jenkins Credentials (set once, auto-injected).
+        // IDs: gemini-api-key, openrouter-api-key, email-user, email-pass, jwt-secret
         string(name: 'GEMINI_MODEL', defaultValue: 'gemini-2.0-flash', description: 'Google Gemini Model name')
     }
 
@@ -246,7 +243,14 @@ trap cleanup INT TERM
         stage('Apply Terraform') {
             when { expression { return params.DEPLOY_AWS } }
             steps {
-                withCredentials([usernamePassword(credentialsId: 'aws-creds', passwordVariable: 'AWS_SECRET_ACCESS_KEY', usernameVariable: 'AWS_ACCESS_KEY_ID')]) {
+                withCredentials([
+                    usernamePassword(credentialsId: 'aws-creds', passwordVariable: 'AWS_SECRET_ACCESS_KEY', usernameVariable: 'AWS_ACCESS_KEY_ID'),
+                    string(credentialsId: 'gemini-api-key',      variable: 'GEMINI_API_KEY'),
+                    string(credentialsId: 'openrouter-api-key',  variable: 'OPENROUTER_API_KEY'),
+                    string(credentialsId: 'email-user',          variable: 'EMAIL_USER'),
+                    string(credentialsId: 'email-pass',          variable: 'EMAIL_PASS'),
+                    string(credentialsId: 'jwt-secret',          variable: 'JWT_SECRET')
+                ]) {
                     sh """
                         set -euxo pipefail
                         cd infrastructure
@@ -262,50 +266,12 @@ trap cleanup INT TERM
                           rm -rf awscliv2.zip aws
                         fi
 
-                        # Load secrets from a .env file placed in the repo root
-                        # (the main Placement-Portal folder). Fallback to backend/.env
-                        # for backwards compatibility.
-                        if [ -f ../.env ]; then
-                          echo "Loading backend secret values from repo-root .env (../.env)"
-                          set -a
-                          . ../.env
-                          set +a
-                        elif [ -f ../backend/.env ]; then
-                          echo "Loading backend secret values from ../backend/.env"
-                          set -a
-                          . ../backend/.env
-                          set +a
-                        fi
-
-                        if [ -n "\${OPENROUTER_API_KEY:-}" ]; then
-                          aws ssm put-parameter --name "\${SSM_PREFIX}/OPENROUTER_API_KEY" --value "\${OPENROUTER_API_KEY}" --type SecureString --overwrite --region "\${AWS_REGION}"
-                        elif [ -n "${params.OPENROUTER_API_KEY}" ]; then
-                          aws ssm put-parameter --name "\${SSM_PREFIX}/OPENROUTER_API_KEY" --value "${params.OPENROUTER_API_KEY}" --type SecureString --overwrite --region "\${AWS_REGION}"
-                        fi
-
-                        if [ -n "\${GEMINI_API_KEY:-}" ]; then
-                          aws ssm put-parameter --name "\${SSM_PREFIX}/GEMINI_API_KEY" --value "\${GEMINI_API_KEY}" --type SecureString --overwrite --region "\${AWS_REGION}"
-                        elif [ -n "${params.GEMINI_API_KEY}" ]; then
-                          aws ssm put-parameter --name "\${SSM_PREFIX}/GEMINI_API_KEY" --value "${params.GEMINI_API_KEY}" --type SecureString --overwrite --region "\${AWS_REGION}"
-                        fi
-
-                        if [ -n "\${EMAIL_USER:-}" ]; then
-                          aws ssm put-parameter --name "\${SSM_PREFIX}/EMAIL_USER" --value "\${EMAIL_USER}" --type SecureString --overwrite --region "\${AWS_REGION}"
-                        elif [ -n "${params.EMAIL_USER}" ]; then
-                          aws ssm put-parameter --name "\${SSM_PREFIX}/EMAIL_USER" --value "${params.EMAIL_USER}" --type SecureString --overwrite --region "\${AWS_REGION}"
-                        fi
-
-                        if [ -n "\${EMAIL_PASS:-}" ]; then
-                          aws ssm put-parameter --name "\${SSM_PREFIX}/EMAIL_PASS" --value "\${EMAIL_PASS}" --type SecureString --overwrite --region "\${AWS_REGION}"
-                        elif [ -n "${params.EMAIL_PASS}" ]; then
-                          aws ssm put-parameter --name "\${SSM_PREFIX}/EMAIL_PASS" --value "${params.EMAIL_PASS}" --type SecureString --overwrite --region "\${AWS_REGION}"
-                        fi
-
-                        if [ -n "\${JWT_SECRET:-}" ]; then
-                          aws ssm put-parameter --name "\${SSM_PREFIX}/JWT_SECRET" --value "\${JWT_SECRET}" --type SecureString --overwrite --region "\${AWS_REGION}"
-                        elif [ -n "${params.JWT_SECRET}" ]; then
-                          aws ssm put-parameter --name "\${SSM_PREFIX}/JWT_SECRET" --value "${params.JWT_SECRET}" --type SecureString --overwrite --region "\${AWS_REGION}"
-                        fi
+                        # Push secrets from Jenkins Credentials into AWS SSM (permanent store).
+                        aws ssm put-parameter --name "\${SSM_PREFIX}/GEMINI_API_KEY"     --value "\${GEMINI_API_KEY}"     --type SecureString --overwrite --region "\${AWS_REGION}"
+                        aws ssm put-parameter --name "\${SSM_PREFIX}/OPENROUTER_API_KEY" --value "\${OPENROUTER_API_KEY}" --type SecureString --overwrite --region "\${AWS_REGION}"
+                        aws ssm put-parameter --name "\${SSM_PREFIX}/EMAIL_USER"         --value "\${EMAIL_USER}"         --type SecureString --overwrite --region "\${AWS_REGION}"
+                        aws ssm put-parameter --name "\${SSM_PREFIX}/EMAIL_PASS"         --value "\${EMAIL_PASS}"         --type SecureString --overwrite --region "\${AWS_REGION}"
+                        aws ssm put-parameter --name "\${SSM_PREFIX}/JWT_SECRET"         --value "\${JWT_SECRET}"         --type SecureString --overwrite --region "\${AWS_REGION}"
 
                         ./terraform init
                         
@@ -373,7 +339,14 @@ trap cleanup INT TERM
         stage('Deploy to AWS EC2 (SSM)') {
             when { expression { return params.DEPLOY_AWS } }
             steps {
-                withCredentials([usernamePassword(credentialsId: 'aws-creds', passwordVariable: 'AWS_SECRET_ACCESS_KEY', usernameVariable: 'AWS_ACCESS_KEY_ID')]) {
+                withCredentials([
+                    usernamePassword(credentialsId: 'aws-creds', passwordVariable: 'AWS_SECRET_ACCESS_KEY', usernameVariable: 'AWS_ACCESS_KEY_ID'),
+                    string(credentialsId: 'gemini-api-key',      variable: 'GEMINI_API_KEY'),
+                    string(credentialsId: 'openrouter-api-key',  variable: 'OPENROUTER_API_KEY'),
+                    string(credentialsId: 'email-user',          variable: 'EMAIL_USER'),
+                    string(credentialsId: 'email-pass',          variable: 'EMAIL_PASS'),
+                    string(credentialsId: 'jwt-secret',          variable: 'JWT_SECRET')
+                ]) {
                     echo "🚀 Deploying to AWS EC2 instances via SSM..."
                     script {
                     def AWS_REGION = params.AWS_REGION
@@ -419,33 +392,14 @@ trap cleanup INT TERM
                     echo "📍 Frontend instance: ${frontendInstanceId}"
                     echo "📍 MongoDB IP: ${mongoIp}"
 
-                    // Load secrets from repo-root .env (main Placement folder)
-                    // so missing Jenkins params still produce a working container.
-                    def rootEnv = [:]
-                    def rootEnvPath = "${env.WORKSPACE}/.env"
-                    if (fileExists(rootEnvPath)) {
-                        echo "Loading backend secrets from repo-root .env: ${rootEnvPath}"
-                        readFile(rootEnvPath).split('\n').each { rawLine ->
-                            def line = rawLine.trim()
-                            if (!line || line.startsWith('#') || !line.contains('=')) return
-                            def idx = line.indexOf('=')
-                            def k = line.substring(0, idx).trim()
-                            def v = line.substring(idx + 1).trim()
-                            if (v.startsWith('"') && v.endsWith('"')) v = v.substring(1, v.length() - 1)
-                            else if (v.startsWith("'") && v.endsWith("'")) v = v.substring(1, v.length() - 1)
-                            rootEnv[k] = v
-                        }
-                    } else {
-                        echo "No repo-root .env found at ${rootEnvPath}; relying on Jenkins params/env."
-                    }
-
-                    def trimValue = { value -> value == null ? '' : "${value}".trim() }
-                    def geminiApiKey = trimValue(params.GEMINI_API_KEY) ?: trimValue(env.GEMINI_API_KEY) ?: trimValue(rootEnv['GEMINI_API_KEY'])
-                    def openRouterApiKey = trimValue(params.OPENROUTER_API_KEY) ?: trimValue(env.OPENROUTER_API_KEY) ?: trimValue(rootEnv['OPENROUTER_API_KEY'])
-                    def geminiModel = trimValue(params.GEMINI_MODEL) ?: trimValue(rootEnv['GEMINI_MODEL']) ?: 'gemini-2.0-flash'
-                    def emailUser = trimValue(params.EMAIL_USER) ?: trimValue(env.EMAIL_USER) ?: trimValue(rootEnv['EMAIL_USER'])
-                    def emailPass = trimValue(params.EMAIL_PASS) ?: trimValue(env.EMAIL_PASS) ?: trimValue(rootEnv['EMAIL_PASS'])
-                    def jwtSecret = trimValue(params.JWT_SECRET) ?: trimValue(env.JWT_SECRET) ?: trimValue(rootEnv['JWT_SECRET']) ?: 'change-me'
+                    // Secrets come from Jenkins Credentials via withCredentials above.
+                    // env.* variables are already plain Strings, no Secret coercion needed.
+                    def geminiApiKey    = env.GEMINI_API_KEY     ?: ''
+                    def openRouterApiKey = env.OPENROUTER_API_KEY ?: ''
+                    def geminiModel     = params.GEMINI_MODEL?.toString()?.trim() ?: 'gemini-2.0-flash'
+                    def emailUser       = env.EMAIL_USER          ?: ''
+                    def emailPass       = env.EMAIL_PASS          ?: ''
+                    def jwtSecret       = env.JWT_SECRET          ?: 'change-me'
 
                     if (!backendInstanceId || backendInstanceId == 'None' || !frontendInstanceId || frontendInstanceId == 'None') {
                         error("EC2 instances not running. Run: cd infrastructure && terraform apply -auto-approve")
