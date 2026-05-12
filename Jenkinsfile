@@ -262,7 +262,15 @@ trap cleanup INT TERM
                           rm -rf awscliv2.zip aws
                         fi
 
-                        if [ -f ../backend/.env ]; then
+                        # Load secrets from a .env file placed in the repo root
+                        # (the main Placement-Portal folder). Fallback to backend/.env
+                        # for backwards compatibility.
+                        if [ -f ../.env ]; then
+                          echo "Loading backend secret values from repo-root .env (../.env)"
+                          set -a
+                          . ../.env
+                          set +a
+                        elif [ -f ../backend/.env ]; then
                           echo "Loading backend secret values from ../backend/.env"
                           set -a
                           . ../backend/.env
@@ -411,16 +419,32 @@ trap cleanup INT TERM
                     echo "📍 Frontend instance: ${frontendInstanceId}"
                     echo "📍 MongoDB IP: ${mongoIp}"
 
-                    def trimValue = { value ->
-                        return value == null ? '' : value.toString().trim()
+                    // Load secrets from repo-root .env (main Placement folder)
+                    // so missing Jenkins params still produce a working container.
+                    def rootEnv = [:]
+                    def rootEnvPath = "${env.WORKSPACE}/.env"
+                    if (fileExists(rootEnvPath)) {
+                        echo "Loading backend secrets from repo-root .env: ${rootEnvPath}"
+                        readFile(rootEnvPath).split('\n').each { rawLine ->
+                            def line = rawLine.trim()
+                            if (!line || line.startsWith('#') || !line.contains('=')) return
+                            def idx = line.indexOf('=')
+                            def k = line.substring(0, idx).trim()
+                            def v = line.substring(idx + 1).trim()
+                            if (v.startsWith('"') && v.endsWith('"')) v = v.substring(1, v.length() - 1)
+                            else if (v.startsWith("'") && v.endsWith("'")) v = v.substring(1, v.length() - 1)
+                            rootEnv[k] = v
+                        }
+                    } else {
+                        echo "No repo-root .env found at ${rootEnvPath}; relying on Jenkins params/env."
                     }
 
-                    def geminiApiKey = trimValue(params.GEMINI_API_KEY) ?: trimValue(env.GEMINI_API_KEY)
-                    def openRouterApiKey = trimValue(params.OPENROUTER_API_KEY) ?: trimValue(env.OPENROUTER_API_KEY)
-                    def geminiModel = trimValue(params.GEMINI_MODEL) ?: 'gemini-2.0-flash'
-                    def emailUser = trimValue(params.EMAIL_USER) ?: trimValue(env.EMAIL_USER)
-                    def emailPass = trimValue(params.EMAIL_PASS) ?: trimValue(env.EMAIL_PASS)
-                    def jwtSecret = trimValue(params.JWT_SECRET) ?: trimValue(env.JWT_SECRET) ?: 'change-me'
+                    def geminiApiKey = params.GEMINI_API_KEY?.trim() ?: env.GEMINI_API_KEY?.trim() ?: rootEnv['GEMINI_API_KEY']?.trim() ?: ''
+                    def openRouterApiKey = params.OPENROUTER_API_KEY?.trim() ?: env.OPENROUTER_API_KEY?.trim() ?: rootEnv['OPENROUTER_API_KEY']?.trim() ?: ''
+                    def geminiModel = params.GEMINI_MODEL?.trim() ?: rootEnv['GEMINI_MODEL']?.trim() ?: 'gemini-2.0-flash'
+                    def emailUser = params.EMAIL_USER?.trim() ?: env.EMAIL_USER?.trim() ?: rootEnv['EMAIL_USER']?.trim() ?: ''
+                    def emailPass = params.EMAIL_PASS?.trim() ?: env.EMAIL_PASS?.trim() ?: rootEnv['EMAIL_PASS']?.trim() ?: ''
+                    def jwtSecret = params.JWT_SECRET?.trim() ?: env.JWT_SECRET?.trim() ?: rootEnv['JWT_SECRET']?.trim() ?: 'change-me'
 
                     if (!backendInstanceId || backendInstanceId == 'None' || !frontendInstanceId || frontendInstanceId == 'None') {
                         error("EC2 instances not running. Run: cd infrastructure && terraform apply -auto-approve")
