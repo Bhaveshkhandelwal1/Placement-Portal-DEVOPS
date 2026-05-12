@@ -411,9 +411,12 @@ trap cleanup INT TERM
                     echo "📍 Frontend instance: ${frontendInstanceId}"
                     echo "📍 MongoDB IP: ${mongoIp}"
 
-                    def geminiApiKey = env.GEMINI_API_KEY?.trim() ?: ''
-                    def openRouterApiKey = env.OPENROUTER_API_KEY?.trim() ?: ''
+                    def geminiApiKey = params.GEMINI_API_KEY?.trim() ?: env.GEMINI_API_KEY?.trim() ?: ''
+                    def openRouterApiKey = params.OPENROUTER_API_KEY?.trim() ?: env.OPENROUTER_API_KEY?.trim() ?: ''
                     def geminiModel = params.GEMINI_MODEL?.trim() ?: 'gemini-2.0-flash'
+                    def emailUser = params.EMAIL_USER?.trim() ?: env.EMAIL_USER?.trim() ?: ''   
+                    def emailPass = params.EMAIL_PASS?.trim() ?: env.EMAIL_PASS?.trim() ?: ''   
+                    def jwtSecret = params.JWT_SECRET?.trim() ?: env.JWT_SECRET?.trim() ?: 'change-me'  
 
                     if (!backendInstanceId || backendInstanceId == 'None' || !frontendInstanceId || frontendInstanceId == 'None') {
                         error("EC2 instances not running. Run: cd infrastructure && terraform apply -auto-approve")
@@ -429,7 +432,7 @@ trap cleanup INT TERM
                                 "aws ecr get-login-password --region ${AWS_REGION} | docker login --username AWS --password-stdin ${ECR_REGISTRY}",
                                 "docker pull ${IMAGE_BACKEND}:${env.GIT_COMMIT_SHORT}",
                                 "docker rm -f \$(docker ps -aq) 2>/dev/null || true",
-                                "docker run -d --name placement-backend --restart unless-stopped -p 5000:5000 -e PORT=5000 -e NODE_ENV=production -e MONGODB_URI=\\"mongodb://${mongoIp}:27017/placement_db\\" -e JWT_SECRET=\\"\${JWT_SECRET:-change-me}\\" -e GEMINI_API_KEY=\\"${geminiApiKey}\\" -e GEMINI_MODEL=\\"${geminiModel}\\" -e OPENROUTER_API_KEY=\\"${openRouterApiKey}\\" ${IMAGE_BACKEND}:${env.GIT_COMMIT_SHORT}"
+                                "docker run -d --name placement-backend --restart unless-stopped -p 5000:5000 -e PORT=5000 -e NODE_ENV=production -e MONGODB_URI=\\"mongodb://${mongoIp}:27017/placement_db\\" -e JWT_SECRET=\\"${jwtSecret}\\" -e GEMINI_API_KEY=\\"${geminiApiKey}\\" -e GEMINI_MODEL=\\"${geminiModel}\\" -e OPENROUTER_API_KEY=\\"${openRouterApiKey}\\" -e EMAIL_USER=\\"${emailUser}\\" -e EMAIL_PASS=\\"${emailPass}\\" ${IMAGE_BACKEND}:${env.GIT_COMMIT_SHORT}"
                               ]' \
                               --region ${AWS_REGION} \
                               --query 'Command.CommandId' \
